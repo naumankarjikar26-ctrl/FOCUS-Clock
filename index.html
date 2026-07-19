@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Focus Tracker</title>
+    <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
     <style>
         :root {
             --bg-color: #fdfdfd;
@@ -133,11 +134,20 @@
         .music-input-group { display: flex; gap: 5px; }
         .music-input-group input { flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid #ddd; outline: none; font-size: 0.8rem; font-family: inherit; background: #fafafa; }
         .music-input-group button { background: var(--btn-dark); color: #fff; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.8rem; }
+        .header-btns { display: flex; gap: 8px; align-items: center; }
+        .loop-btn { background: none; border: none; cursor: pointer; font-size: 1rem; color: var(--text-muted); border-radius: 8px; padding: 2px 6px; }
+        .loop-btn.active { color: #fff; background: var(--btn-dark); }
         
         /* Bottom Elements */
         .bottom-left { position: absolute; bottom: 40px; left: 40px; display: flex; gap: 10px; z-index: 20; }
         .bottom-right { position: absolute; bottom: 40px; right: 40px; display: flex; gap: 10px; }
         .mode-selector { position: absolute; bottom: 40px; background: var(--btn-light); border: none; padding: 10px 20px; border-radius: 20px; font-weight: 600; outline: none; cursor: pointer; }
+
+        #reorder-panel { display: none; flex-direction: column; gap: 8px; position: absolute; bottom: 105px; right: 40px; background: var(--card-bg); padding: 15px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); border: 1px solid #eaeaea; z-index: 20; width: 220px; }
+        .reorder-title { font-weight: 800; font-size: 0.75rem; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 4px; }
+        .reorder-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--btn-light); border-radius: 8px; font-weight: 600; font-size: 0.85rem; }
+        .reorder-arrows button { background: none; border: none; cursor: pointer; font-size: 0.9rem; color: var(--text-main); padding: 2px 6px; }
+        .reorder-arrows button:disabled { opacity: 0.25; cursor: default; }
         
         /* Ringing Overlay */
         .alarm-ringing { position: absolute; top: 20px; background: var(--btn-dark); color: #fff; padding: 15px 25px; border-radius: 30px; font-weight: 700; letter-spacing: 1px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: slideDown 0.3s ease-out; z-index: 100; display: none; align-items: center; gap: 15px; }
@@ -227,9 +237,6 @@
             <!-- Timer / Presets View -->
             <div id="study-main-view" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
                 <div class="preset-btns" id="study-presets">
-                    <button class="preset-btn" onclick="startStudy(60, 15)">1 Hr Study / 15 Min Break</button>
-                    <button class="preset-btn" onclick="startStudy(90, 30)">1.5 Hr Study / 30 Min Break</button>
-                    <button class="preset-btn" onclick="startStudy(30, 5)">30 Min Study / 5 Min Break</button>
                     <div id="custom-presets-container" style="display: flex; flex-direction: column; gap: 10px;"></div>
                     
                     <div class="custom-preset-form">
@@ -272,9 +279,12 @@
         <div id="music-panel">
             <div class="music-header">
                 Spotify Player
-                <button class="close-music" onclick="toggleMusicPanel()">×</button>
+                <div class="header-btns">
+                    <button class="loop-btn" id="loop-btn" onclick="toggleLoop()" title="Loop current track">🔁</button>
+                    <button class="close-music" onclick="toggleMusicPanel()">×</button>
+                </div>
             </div>
-            <iframe id="spotify-iframe" style="border-radius:12px" src="https://open.spotify.com/embed/playlist/37i9dQZF1DWZeKCadgRdKQ?utm_source=generator" width="100%" height="152" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
+            <div id="spotify-embed-container" style="border-radius:12px; overflow:hidden;"></div>
             <div class="music-input-group">
                 <input type="text" id="spotify-link" placeholder="Paste Spotify URL here...">
                 <button onclick="loadSpotify()">Load</button>
@@ -282,15 +292,15 @@
         </div>
     </div>
 
-    <select class="mode-selector" id="mode-select" onchange="changeMode()">
-        <option value="timer">Timer</option>
-        <option value="stopwatch">Stopwatch</option>
-        <option value="clock">Clock</option>
-        <option value="alarm">Alarm</option>
-        <option value="study">Study</option>
-    </select>
+    <select class="mode-selector" id="mode-select" onchange="changeMode()"></select>
+
+    <div id="reorder-panel">
+        <div class="reorder-title">REORDER MODES</div>
+        <div id="reorder-list"></div>
+    </div>
 
     <div class="bottom-right">
+        <button class="btn-icon" onclick="toggleReorderPanel()" title="Reorder modes">⇅</button>
         <button class="btn-icon">⚙️</button>
     </div>
 
@@ -343,7 +353,72 @@
         const ringingText = document.getElementById('alarm-ringing-text');
         
         const musicPanel = document.getElementById('music-panel');
-        const spotifyIframe = document.getElementById('spotify-iframe');
+
+        // --- Mode order ---
+        const modeLabels = { timer: 'Timer', stopwatch: 'Stopwatch', clock: 'Clock', alarm: 'Alarm', study: 'Study' };
+        let modeOrder = JSON.parse(localStorage.getItem('focus_mode_order')) || ['timer', 'stopwatch', 'clock', 'alarm', 'study'];
+
+        function renderModeSelect() {
+            const select = document.getElementById('mode-select');
+            const current = select.value || mode;
+            select.innerHTML = modeOrder.map(m => `<option value="${m}">${modeLabels[m]}</option>`).join('');
+            select.value = modeOrder.includes(current) ? current : modeOrder[0];
+        }
+
+        function toggleReorderPanel() {
+            const panel = document.getElementById('reorder-panel');
+            if (panel.style.display === 'flex') { panel.style.display = 'none'; return; }
+            renderReorderList();
+            panel.style.display = 'flex';
+        }
+
+        function renderReorderList() {
+            const list = document.getElementById('reorder-list');
+            list.innerHTML = modeOrder.map((m, i) => `
+                <div class="reorder-item">
+                    <span>${modeLabels[m]}</span>
+                    <span class="reorder-arrows">
+                        <button onclick="moveMode(${i}, -1)" ${i === 0 ? 'disabled' : ''}>↑</button>
+                        <button onclick="moveMode(${i}, 1)" ${i === modeOrder.length - 1 ? 'disabled' : ''}>↓</button>
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        function moveMode(index, dir) {
+            const newIndex = index + dir;
+            if (newIndex < 0 || newIndex >= modeOrder.length) return;
+            [modeOrder[index], modeOrder[newIndex]] = [modeOrder[newIndex], modeOrder[index]];
+            localStorage.setItem('focus_mode_order', JSON.stringify(modeOrder));
+            renderReorderList();
+            renderModeSelect();
+        }
+
+        renderModeSelect();
+
+        // --- Spotify player (iFrame API, enables loop control) ---
+        let spotifyController = null;
+        let loopEnabled = false;
+        let currentSpotifyUri = 'spotify:playlist:37i9dQZF1DWZeKCadgRdKQ';
+
+        window.onSpotifyIframeApiReady = (IFrameAPI) => {
+            const element = document.getElementById('spotify-embed-container');
+            const options = { uri: currentSpotifyUri, width: '100%', height: '152' };
+            const callback = (EmbedController) => {
+                spotifyController = EmbedController;
+                spotifyController.addListener('playback_update', e => {
+                    if (loopEnabled && e.data.duration > 0 && e.data.position >= e.data.duration - 500) {
+                        spotifyController.seek(0);
+                    }
+                });
+            };
+            IFrameAPI.createController(element, options, callback);
+        };
+
+        function toggleLoop() {
+            loopEnabled = !loopEnabled;
+            document.getElementById('loop-btn').classList.toggle('active', loopEnabled);
+        }
 
         focusTitle.addEventListener('blur', function() { if (this.innerText.trim() === "") this.innerText = "FOCUS"; });
         focusTitle.addEventListener('focus', function() {
@@ -381,7 +456,10 @@
         function loadSpotify() {
             const url = document.getElementById('spotify-link').value;
             if (!url.includes('spotify.com')) return alert("Please enter a valid Spotify link.");
-            spotifyIframe.src = url.replace('open.spotify.com', 'open.spotify.com/embed').split('?')[0];
+            const match = url.match(/spotify\.com\/(track|album|playlist|episode|show)\/([a-zA-Z0-9]+)/);
+            if (!match) return alert("Couldn't parse that Spotify link.");
+            currentSpotifyUri = `spotify:${match[1]}:${match[2]}`;
+            if (spotifyController) spotifyController.loadUri(currentSpotifyUri);
             document.getElementById('spotify-link').value = '';
         }
 
