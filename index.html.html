@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Focus Tracker</title>
+    <style>
+        :root {
+            --bg-color: #fdfdfd;
+            --text-main: #111;
+            --text-muted: #999;
+            --card-bg: #fff;
+            --btn-dark: #222;
+            --btn-light: #f0f0f0;
+        }
+
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Top Left Logo */
+        .top-left { position: absolute; top: 40px; left: 40px; }
+        .logo { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px; }
+        .subtitle { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+
+        /* Top Right Quote Box */
+        .quote-box {
+            position: absolute; top: 40px; right: 40px;
+            background: var(--card-bg);
+            padding: 20px 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.04);
+            text-align: center;
+            cursor: text;
+            z-index: 10;
+        }
+        .quote-text { font-size: 1rem; font-weight: 700; margin-bottom: 5px; outline: none; }
+        .quote-sub { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; outline: none; }
+
+        /* Center Content Container */
+        .center-wrapper { display: flex; flex-direction: column; align-items: center; position: relative; width: 100%; }
+        
+        /* Focus Title text */
+        .focus-title { font-size: 1.2rem; font-weight: 700; letter-spacing: 1px; outline: none; text-align: center; position: relative; z-index: 10; padding: 5px 15px; margin-bottom: 5px; display: block; }
+        
+        /* Timer Layout */
+        .time-display { font-size: 12vw; font-weight: 800; letter-spacing: -2px; display: flex; align-items: center; justify-content: center; line-height: 0.9; margin: 0 0 30px 0; position: relative; z-index: 5; }
+        .time-part { outline: none; border-bottom: 2px solid transparent; transition: border 0.2s; min-width: 1.2em; text-align: center; display: inline-block; line-height: 0.9; }
+        .time-part:focus { border-bottom: 2px solid var(--text-muted); }
+        .colon { display: inline-block; line-height: 0.9; pointer-events: none; user-select: none; }
+
+        /* Controls */
+        .controls { display: flex; gap: 15px; align-items: center; height: 54px; }
+        .btn-primary { background: var(--btn-dark); color: #fff; border: none; border-radius: 30px; padding: 18px 40px; font-size: 1rem; font-weight: 600; cursor: pointer; box-shadow: 0 10px 20px rgba(0,0,0,0.1); transition: transform 0.1s; }
+        .btn-primary:active { transform: scale(0.96); }
+        .btn-icon { background: var(--btn-light); color: var(--text-main); border: none; border-radius: 50%; width: 54px; height: 54px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; cursor: pointer; transition: background 0.2s; }
+        .btn-icon:hover { background: #e5e5e5; }
+
+        /* Alarm Interface */
+        #alarm-interface { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 420px; z-index: 10; margin-top: 10px; }
+        .alarm-list { width: 100%; display: flex; flex-direction: column; gap: 10px; max-height: 40vh; overflow-y: auto; margin-bottom: 15px; padding: 5px; }
+        .alarm-item { display: flex; justify-content: space-between; align-items: center; background: var(--bg-color); padding: 12px 18px; border-radius: 12px; border: 1px solid #eaeaea; box-shadow: 0 4px 10px rgba(0,0,0,0.03); font-weight: 600; transition: background 0.2s; }
+        .alarm-item.inactive { opacity: 0.6; }
+        .alarm-info { display: flex; flex-direction: column; text-align: left; }
+        .alarm-label { font-size: 0.8rem; color: var(--text-muted); font-weight: normal; margin-top: 2px; }
+        .alarm-controls { display: flex; gap: 10px; align-items: center; }
+        .toggle-btn { border: none; padding: 6px 12px; border-radius: 15px; font-weight: 700; font-size: 0.75rem; cursor: pointer; transition: all 0.2s; }
+        .toggle-btn.on { background: var(--btn-dark); color: #fff; }
+        .toggle-btn.off { background: var(--btn-light); color: var(--text-muted); }
+        .alarm-btn.delete { background: none; border: none; cursor: pointer; font-size: 1.3rem; color: #d9534f; padding: 0; line-height: 1; }
+        .add-alarm-form { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; max-width: 320px; background: var(--card-bg); padding: 15px; border-radius: 16px; border: 1px solid #eaeaea; box-shadow: 0 8px 30px rgba(0,0,0,0.04); justify-content: center; }
+        .add-alarm-form input { padding: 10px 12px; border-radius: 8px; border: 1px solid #ddd; outline: none; font-size: 0.9rem; font-family: inherit; background: #fafafa; }
+        .add-alarm-form input[type="time"] { width: 110px; }
+        .add-alarm-form input[type="text"] { flex: 1; min-width: 120px; }
+        .alarm-action-btns { display: flex; gap: 8px; width: 100%; }
+        .alarm-action-btns button { flex: 1; color: #fff; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.9rem; }
+        .btn-add { background: var(--btn-dark); }
+        .btn-test { background: #666; }
+
+        /* Study Mode Interface */
+        #study-interface { display: none; flex-direction: column; align-items: center; width: 100%; z-index: 10; margin-top: 10px; }
+        
+        .study-nav { display: flex; gap: 10px; margin-bottom: 20px; width: 100%; max-width: 350px; justify-content: center; }
+        .study-nav-btn { flex: 1; padding: 10px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; background: var(--btn-light); color: var(--text-muted); transition: all 0.2s; }
+        .study-nav-btn.active { background: var(--btn-dark); color: #fff; }
+
+        .preset-btns { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; width: 100%; max-width: 300px; }
+        .preset-btn { background: var(--card-bg); color: var(--text-main); border: 2px solid #eaeaea; padding: 15px 20px; border-radius: 12px; cursor: pointer; font-weight: 700; font-size: 0.9rem; box-shadow: 0 4px 10px rgba(0,0,0,0.02); transition: all 0.2s; display: flex; justify-content: space-between; align-items: center;}
+        .preset-btn:hover { border-color: var(--btn-dark); transform: translateY(-2px); }
+        .preset-delete { background: none; border: none; color: #d9534f; font-size: 1.2rem; cursor: pointer; padding: 0 5px; }
+
+        .custom-preset-form { display: flex; gap: 8px; width: 100%; margin-top: 5px; }
+        .custom-preset-form input { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #ddd; outline: none; font-size: 0.9rem; background: #fafafa; }
+        .custom-preset-form button { background: var(--btn-dark); color: #fff; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: 700; }
+
+        /* Stats Graph & Calendar */
+        #study-stats-view { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 360px; }
+        
+        .stats-header { font-size: 0.9rem; font-weight: 800; margin-bottom: 5px; color: var(--text-main); text-transform: uppercase; letter-spacing: 1px; width: 100%; text-align: left; }
+        
+        .graph-container { display: flex; align-items: flex-end; justify-content: space-around; height: 130px; width: 100%; margin-top: 15px; padding-bottom: 20px; border-bottom: 1px solid #eaeaea; position: relative; }
+        .bar-group { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; width: 40px; position: relative; }
+        .bar { width: 100%; background: var(--btn-dark); border-radius: 4px 4px 0 0; min-height: 2px; transition: height 0.5s ease-out; }
+        .bar-label { font-size: 0.65rem; color: var(--text-muted); position: absolute; bottom: -18px; font-weight: 600; }
+        .stat-total { font-size: 0.65rem; font-weight: bold; position: absolute; top: -18px; }
+        
+        /* Subtle GitHub-style Calendar */
+        .calendar-wrapper { width: 100%; margin-top: 20px; display: flex; flex-direction: column; gap: 5px; }
+        .calendar-heatmap { display: grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; gap: 4px; width: 100%; overflow-x: auto; padding-bottom: 10px; }
+        .calendar-heatmap::-webkit-scrollbar { height: 4px; }
+        .calendar-heatmap::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
+        .day-cell { width: 10px; height: 10px; border-radius: 2px; background: #f0f0f0; transition: transform 0.1s; }
+        .day-cell:hover { transform: scale(1.2); }
+        .day-cell.lvl-1 { background: #d0d0d0; }
+        .day-cell.lvl-2 { background: #999; }
+        .day-cell.lvl-3 { background: var(--btn-dark); }
+
+        /* Music Player Panel */
+        #music-panel { position: absolute; bottom: 105px; left: 40px; background: var(--card-bg); padding: 15px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); width: 300px; display: none; flex-direction: column; gap: 10px; z-index: 20; border: 1px solid #eaeaea; }
+        .music-header { font-weight: 700; font-size: 1rem; margin: 0; display: flex; justify-content: space-between; align-items: center; }
+        .close-music { background: none; border: none; cursor: pointer; font-size: 1.2rem; color: var(--text-muted); }
+        .music-input-group { display: flex; gap: 5px; }
+        .music-input-group input { flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid #ddd; outline: none; font-size: 0.8rem; font-family: inherit; background: #fafafa; }
+        .music-input-group button { background: var(--btn-dark); color: #fff; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.8rem; }
+        
+        /* Bottom Elements */
+        .bottom-left { position: absolute; bottom: 40px; left: 40px; display: flex; gap: 10px; z-index: 20; }
+        .bottom-right { position: absolute; bottom: 40px; right: 40px; display: flex; gap: 10px; }
+        .mode-selector { position: absolute; bottom: 40px; background: var(--btn-light); border: none; padding: 10px 20px; border-radius: 20px; font-weight: 600; outline: none; cursor: pointer; }
+        
+        /* Ringing Overlay */
+        .alarm-ringing { position: absolute; top: 20px; background: var(--btn-dark); color: #fff; padding: 15px 25px; border-radius: 30px; font-weight: 700; letter-spacing: 1px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: slideDown 0.3s ease-out; z-index: 100; display: none; align-items: center; gap: 15px; }
+        .stop-alarm-btn { background: #fff; color: var(--btn-dark); border: none; padding: 8px 16px; border-radius: 20px; font-weight: 800; cursor: pointer; font-size: 0.85rem; transition: transform 0.1s; }
+        .stop-alarm-btn:active { transform: scale(0.95); }
+        @keyframes slideDown { from { top: -50px; opacity: 0; } to { top: 20px; opacity: 1; } }
+
+    </style>
+</head>
+<body>
+
+    <div class="alarm-ringing" id="alarm-ringing-box">
+        <span id="alarm-ringing-text">ALARM: WAKE UP!</span>
+        <button class="stop-alarm-btn" onclick="stopAlarm()">STOP</button>
+    </div>
+
+    <div class="top-left">
+        <div class="logo">focus</div>
+        <div class="subtitle">liquid glass</div>
+    </div>
+
+    <div class="quote-box">
+        <div class="quote-text" contenteditable="true">"GET SHIT DONE!"</div>
+        <div class="quote-sub" contenteditable="true">TAP TO EDIT</div>
+    </div>
+
+    <div class="center-wrapper">
+        <div class="focus-title" id="focus-title" contenteditable="true">STUDY</div>
+        
+        <!-- Default Timer Display -->
+        <div class="time-display" id="timer-display">
+            <div class="time-part" id="t-hours" contenteditable="true">02</div><span class="colon">:</span><!--
+            --><div class="time-part" id="t-minutes" contenteditable="true">00</div><span class="colon">:</span><!--
+            --><div class="time-part" id="t-seconds" contenteditable="true">00</div>
+        </div>
+
+        <!-- Stopwatch Display -->
+        <div class="time-display" id="stopwatch-display" style="display: none;">
+            <div class="time-part" id="sw-hours" contenteditable="true">00</div><span class="colon">:</span><!--
+            --><div class="time-part" id="sw-minutes" contenteditable="true">00</div><span class="colon">:</span><!--
+            --><div class="time-part" id="sw-seconds" contenteditable="true">00</div>
+        </div>
+
+        <!-- Clock Display -->
+        <div class="time-display" id="clock-display" style="display: none;">
+            <div class="time-part" id="c-hours">12</div><span class="colon">:</span><!--
+            --><div class="time-part" id="c-minutes">00</div><span class="colon">:</span><!--
+            --><div class="time-part" id="c-seconds">00</div>
+        </div>
+
+        <!-- Study Preset Timer Display -->
+        <div class="time-display" id="study-timer-display" style="display: none;">
+            <div class="time-part" id="st-hours">00</div><span class="colon">:</span><!--
+            --><div class="time-part" id="st-minutes">00</div><span class="colon">:</span><!--
+            --><div class="time-part" id="st-seconds">00</div>
+        </div>
+        
+        <!-- Controls -->
+        <div class="controls" id="main-controls">
+            <button class="btn-primary" id="toggle-btn" onclick="toggle()">Start</button>
+            <button class="btn-icon" id="reset-btn" onclick="resetTime()">↻</button>
+            <button class="btn-icon" id="fullscreen-btn" onclick="toggleFullscreen()">⛶</button>
+        </div>
+
+        <!-- Alarm Interface Tab -->
+        <div id="alarm-interface">
+            <div class="alarm-list" id="alarm-list"></div>
+            <div class="add-alarm-form">
+                <input type="time" id="new-alarm-time" required>
+                <input type="text" id="new-alarm-label" placeholder="Alarm Label" maxlength="20">
+                <div class="alarm-action-btns">
+                    <button class="btn-add" onclick="addAlarm()">Add Alarm</button>
+                    <button class="btn-test" onclick="triggerAlarm('TEST BEEP')">Test Beep</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Study Interface Tab -->
+        <div id="study-interface">
+            
+            <div class="study-nav" id="study-nav">
+                <button class="study-nav-btn active" id="tab-btn-presets" onclick="switchStudyTab('presets')">Presets</button>
+                <button class="study-nav-btn" id="tab-btn-stopwatch" onclick="switchStudyTab('stopwatch')">Stopwatch</button>
+                <button class="study-nav-btn" id="tab-btn-stats" onclick="switchStudyTab('stats')">Stats</button>
+            </div>
+
+            <!-- Timer / Presets View -->
+            <div id="study-main-view" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
+                <div class="preset-btns" id="study-presets">
+                    <button class="preset-btn" onclick="startStudy(60, 15)">1 Hr Study / 15 Min Break</button>
+                    <button class="preset-btn" onclick="startStudy(90, 30)">1.5 Hr Study / 30 Min Break</button>
+                    <button class="preset-btn" onclick="startStudy(30, 5)">30 Min Study / 5 Min Break</button>
+                    <div id="custom-presets-container" style="display: flex; flex-direction: column; gap: 10px;"></div>
+                    
+                    <div class="custom-preset-form">
+                        <input type="number" id="custom-s-in" placeholder="Study (m)" min="1">
+                        <input type="number" id="custom-b-in" placeholder="Break (m)" min="1">
+                        <button onclick="addCustomPreset()">+</button>
+                    </div>
+                </div>
+                <button class="btn-icon" id="study-cancel-btn" onclick="cancelStudy()" style="display: none; margin-top: 10px;">⏹</button>
+            </div>
+
+            <!-- Study Stopwatch View -->
+            <div id="study-stopwatch-view" style="display: none; flex-direction: column; align-items: center; margin-top: 20px;">
+                <div class="time-display" style="margin-bottom: 30px;">
+                    <div class="time-part" id="ssw-hours">00</div><span class="colon">:</span><!--
+                    --><div class="time-part" id="ssw-minutes">00</div><span class="colon">:</span><!--
+                    --><div class="time-part" id="ssw-seconds">00</div>
+                </div>
+                <button class="btn-primary" id="ssw-toggle-btn" onclick="toggleStudyStopwatch()">Start</button>
+            </div>
+
+            <!-- Statistics / Graph View -->
+            <div id="study-stats-view">
+                <div class="stats-header">Past 7 Days</div>
+                <div class="graph-container" id="stats-graph"></div>
+                
+                <div class="calendar-wrapper">
+                    <div class="stats-header">Year in Review</div>
+                    <div class="calendar-heatmap" id="calendar-heatmap"></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="bottom-left">
+        <button class="btn-icon">🔔</button>
+        <button class="btn-icon" onclick="toggleMusicPanel()">🎵</button>
+        
+        <div id="music-panel">
+            <div class="music-header">
+                Spotify Player
+                <button class="close-music" onclick="toggleMusicPanel()">×</button>
+            </div>
+            <iframe id="spotify-iframe" style="border-radius:12px" src="https://open.spotify.com/embed/playlist/37i9dQZF1DWZeKCadgRdKQ?utm_source=generator" width="100%" height="152" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
+            <div class="music-input-group">
+                <input type="text" id="spotify-link" placeholder="Paste Spotify URL here...">
+                <button onclick="loadSpotify()">Load</button>
+            </div>
+        </div>
+    </div>
+
+    <select class="mode-selector" id="mode-select" onchange="changeMode()">
+        <option value="timer">Timer</option>
+        <option value="stopwatch">Stopwatch</option>
+        <option value="clock">Clock</option>
+        <option value="alarm">Alarm</option>
+        <option value="study">Study</option>
+    </select>
+
+    <div class="bottom-right">
+        <button class="btn-icon">⚙️</button>
+    </div>
+
+    <script>
+        let mode = 'timer';
+        let timerRunning = false;
+        let stopwatchRunning = false;
+        
+        // Study variables
+        let studyState = 'idle'; 
+        let currentStudySecs = 0;
+        let pendingBreakMins = 0;
+
+        let isStudyStopwatchRunning = false;
+        let studyStopwatchSecs = 0;
+        
+        // Load stored data
+        let customPresets = JSON.parse(localStorage.getItem('focus_custom_presets')) || [];
+        let studyStats = JSON.parse(localStorage.getItem('focus_study_stats')) || {}; 
+
+        let alarms = [];
+        let audioCtx;
+        let activeAlarmInterval = null;
+        
+        const btn = document.getElementById('toggle-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const focusTitle = document.getElementById('focus-title');
+        
+        const timerDisplay = document.getElementById('timer-display');
+        const stopwatchDisplay = document.getElementById('stopwatch-display');
+        const clockDisplay = document.getElementById('clock-display');
+        const studyTimerDisplay = document.getElementById('study-timer-display');
+
+        const alarmInterface = document.getElementById('alarm-interface');
+        const studyInterface = document.getElementById('study-interface');
+        
+        const studyMainView = document.getElementById('study-main-view');
+        const studyStopwatchView = document.getElementById('study-stopwatch-view');
+        const studyStatsView = document.getElementById('study-stats-view');
+        const studyNav = document.getElementById('study-nav');
+        
+        const studyPresets = document.getElementById('study-presets');
+        const studyCancelBtn = document.getElementById('study-cancel-btn');
+        const customPresetsContainer = document.getElementById('custom-presets-container');
+        const statsGraph = document.getElementById('stats-graph');
+        const calendarHeatmap = document.getElementById('calendar-heatmap');
+
+        const alarmList = document.getElementById('alarm-list');
+        const ringingBox = document.getElementById('alarm-ringing-box');
+        const ringingText = document.getElementById('alarm-ringing-text');
+        
+        const musicPanel = document.getElementById('music-panel');
+        const spotifyIframe = document.getElementById('spotify-iframe');
+
+        focusTitle.addEventListener('blur', function() { if (this.innerText.trim() === "") this.innerText = "FOCUS"; });
+        focusTitle.addEventListener('focus', function() {
+            if (this.innerText.trim() === "FOCUS" || this.innerText.trim() === "STUDY") {
+                const range = document.createRange(); range.selectNodeContents(this);
+                const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+            }
+        });
+
+        renderCustomPresets();
+
+        document.querySelectorAll('.time-part[contenteditable="true"]').forEach(part => {
+            part.addEventListener('keydown', function(e) {
+                const allowedKeys = ['Backspace', 'Tab', 'ArrowLeft', 'ArrowRight', 'Delete'];
+                if (allowedKeys.includes(e.key)) return;
+                if (!/^[0-9]$/.test(e.key) || this.innerText.length >= 2) e.preventDefault();
+            });
+            part.addEventListener('paste', function(e) {
+                e.preventDefault();
+                const text = (e.clipboardData || window.clipboardData).getData('text');
+                document.execCommand('insertText', false, text.replace(/[^0-9]/g, '').slice(0, 2));
+            });
+            part.addEventListener('blur', function() {
+                if (this.innerText === '') this.innerText = '00';
+                else if (this.innerText.length === 1) this.innerText = '0' + this.innerText;
+            });
+        });
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function toggleMusicPanel() { musicPanel.style.display = musicPanel.style.display === 'flex' ? 'none' : 'flex'; }
+        function loadSpotify() {
+            const url = document.getElementById('spotify-link').value;
+            if (!url.includes('spotify.com')) return alert("Please enter a valid Spotify link.");
+            spotifyIframe.src = url.replace('open.spotify.com', 'open.spotify.com/embed').split('?')[0];
+            document.getElementById('spotify-link').value = '';
+        }
+
+        // --- Custom Presets Logic ---
+        function addCustomPreset() {
+            const sVal = parseInt(document.getElementById('custom-s-in').value);
+            const bVal = parseInt(document.getElementById('custom-b-in').value);
+            if (!sVal || !bVal) { alert("Enter both study and break minutes."); return; }
+            
+            customPresets.push({ study: sVal, break: bVal });
+            localStorage.setItem('focus_custom_presets', JSON.stringify(customPresets));
+            document.getElementById('custom-s-in').value = ''; document.getElementById('custom-b-in').value = '';
+            renderCustomPresets();
+        }
+
+        function removeCustomPreset(index) {
+            customPresets.splice(index, 1);
+            localStorage.setItem('focus_custom_presets', JSON.stringify(customPresets));
+            renderCustomPresets();
+        }
+
+        function renderCustomPresets() {
+            customPresetsContainer.innerHTML = '';
+            customPresets.forEach((p, index) => {
+                const div = document.createElement('div');
+                div.className = 'preset-btn';
+                div.innerHTML = `
+                    <span onclick="startStudy(${p.study}, ${p.break})" style="flex: 1;">${p.study} Min Study / ${p.break} Min Break</span>
+                    <button class="preset-delete" onclick="removeCustomPreset(${index})" title="Delete">×</button>
+                `;
+                customPresetsContainer.appendChild(div);
+            });
+        }
+
+        // --- Study Stats & Calendar Logic ---
+        function switchStudyTab(tab) {
+            document.getElementById('tab-btn-presets').className = tab === 'presets' ? 'study-nav-btn active' : 'study-nav-btn';
+            document.getElementById('tab-btn-stopwatch').className = tab === 'stopwatch' ? 'study-nav-btn active' : 'study-nav-btn';
+            document.getElementById('tab-btn-stats').className = tab === 'stats' ? 'study-nav-btn active' : 'study-nav-btn';
+            
+            studyMainView.style.display = tab === 'presets' ? 'flex' : 'none';
+            studyStopwatchView.style.display = tab === 'stopwatch' ? 'flex' : 'none';
+            studyStatsView.style.display = tab === 'stats' ? 'flex' : 'none';
+            
+            if (tab === 'stats') {
+                renderGraph();
+                renderCalendar();
+            }
+        }
+
+        function formatStatDisplay(totalSecs) {
+            if (!totalSecs) return "0m";
+            const h = Math.floor(totalSecs / 3600);
+            const m = Math.floor((totalSecs % 3600) / 60);
+            if (h > 0) return `${h}h ${m}m`;
+            return `${m}m`;
+        }
+
+        function renderGraph() {
+            statsGraph.innerHTML = '';
+            const today = new Date();
+            let last7Days = [];
+            let maxSecs = 1; 
+
+            for (let i = 6; i >= 0; i--) {
+                let d = new Date(today);
+                d.setDate(today.getDate() - i);
+                
+                const offset = d.getTimezoneOffset() * 60000;
+                const dateStr = (new Date(d - offset)).toISOString().split('T')[0]; 
+                
+                const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short' });
+                const secs = studyStats[dateStr] || 0;
+                
+                if (secs > maxSecs) maxSecs = secs;
+                last7Days.push({ label: dayLabel, secs: secs });
+            }
+
+            last7Days.forEach(data => {
+                const heightPct = (data.secs / maxSecs) * 100;
+                const barGroup = document.createElement('div');
+                barGroup.className = 'bar-group';
+                barGroup.innerHTML = `
+                    <div class="stat-total">${formatStatDisplay(data.secs)}</div>
+                    <div class="bar" style="height: ${heightPct}%"></div>
+                    <div class="bar-label">${data.label}</div>
+                `;
+                statsGraph.appendChild(barGroup);
+            });
+        }
+
+        function renderCalendar() {
+            calendarHeatmap.innerHTML = '';
+            const today = new Date();
+            const startDate = new Date();
+            startDate.setDate(today.getDate() - 364); 
+
+            let maxSecs = 1;
+            for(let key in studyStats) { if(studyStats[key] > maxSecs) maxSecs = studyStats[key]; }
+
+            for (let i = 0; i <= 364; i++) {
+                let d = new Date(startDate);
+                d.setDate(startDate.getDate() + i);
+                
+                const offset = d.getTimezoneOffset() * 60000;
+                const dateStr = (new Date(d - offset)).toISOString().split('T')[0]; 
+                const secs = studyStats[dateStr] || 0;
+                
+                const cell = document.createElement('div');
+                cell.className = 'day-cell';
+                cell.title = `${dateStr}: ${formatStatDisplay(secs)}`;
+                
+                if(secs > 0) {
+                    const pct = secs / maxSecs;
+                    if(pct > 0.6) cell.classList.add('lvl-3');
+                    else if(pct > 0.3) cell.classList.add('lvl-2');
+                    else cell.classList.add('lvl-1');
+                }
+                
+                calendarHeatmap.appendChild(cell);
+            }
+            
+            // Auto scroll to the most recent day (right side)
+            setTimeout(() => { calendarHeatmap.scrollLeft = calendarHeatmap.scrollWidth; }, 10);
+        }
+
+        // --- Study Presets Logic ---
+        function startStudy(studyM, breakM) {
+            initAudio();
+            pendingBreakMins = breakM;
+            currentStudySecs = studyM * 60;
+            studyState = 'study';
+            
+            if (mode === 'study') focusTitle.innerText = "STUDYING";
+            studyNav.style.display = 'none'; 
+            studyPresets.style.display = 'none';
+            studyTimerDisplay.style.display = 'flex';
+            studyCancelBtn.style.display = 'block';
+            updateStudyDisplay();
+        }
+
+        function startBreak() {
+            currentStudySecs = pendingBreakMins * 60;
+            studyState = 'break';
+            if (mode === 'study') focusTitle.innerText = "BREAK TIME";
+            updateStudyDisplay();
+        }
+
+        function cancelStudy() {
+            studyState = 'idle';
+            studyNav.style.display = 'flex';
+            studyPresets.style.display = 'flex';
+            studyTimerDisplay.style.display = 'none';
+            studyCancelBtn.style.display = 'none';
+            if (mode === 'study') focusTitle.innerText = "STUDY PRESETS";
+        }
+
+        function updateStudyDisplay() {
+            let h = Math.floor(currentStudySecs / 3600);
+            let m = Math.floor((currentStudySecs % 3600) / 60);
+            let s = currentStudySecs % 60;
+            document.getElementById('st-hours').innerText = String(h).padStart(2, '0');
+            document.getElementById('st-minutes').innerText = String(m).padStart(2, '0');
+            document.getElementById('st-seconds').innerText = String(s).padStart(2, '0');
+        }
+
+        // --- Study Stopwatch Logic ---
+        function toggleStudyStopwatch() {
+            isStudyStopwatchRunning = !isStudyStopwatchRunning;
+            document.getElementById('ssw-toggle-btn').innerText = isStudyStopwatchRunning ? "Stop" : "Start";
+            if (mode === 'study') {
+                focusTitle.innerText = isStudyStopwatchRunning ? "STUDYING" : "STUDY STOPWATCH";
+            }
+        }
+
+        // --- Alarms Logic ---
+        function renderAlarms() {
+            alarmList.innerHTML = '';
+            alarms.forEach((alarm, index) => {
+                let [hh, mm] = alarm.time.split(':'); let ampm = hh >= 12 ? 'PM' : 'AM'; let displayH = hh % 12 || 12;
+                const div = document.createElement('div');
+                div.className = `alarm-item ${alarm.active ? '' : 'inactive'}`;
+                div.innerHTML = `
+                    <div class="alarm-info"><span style="font-size: 1.1rem;">${displayH}:${mm} ${ampm}</span><span class="alarm-label">${alarm.label || 'Alarm'}</span></div>
+                    <div class="alarm-controls"><button class="toggle-btn ${alarm.active ? 'on' : 'off'}" onclick="toggleActive(${index})">${alarm.active ? 'ON' : 'OFF'}</button><button class="alarm-btn delete" onclick="deleteAlarm(${index})" title="Delete">×</button></div>
+                `;
+                alarmList.appendChild(div);
+            });
+        }
+
+        function addAlarm() {
+            initAudio(); 
+            const timeVal = document.getElementById('new-alarm-time').value;
+            const labelVal = document.getElementById('new-alarm-label').value;
+            if (!timeVal) { alert("Select a time!"); return; }
+            if (alarms.length >= 10) { alert("Max 10 alarms."); return; }
+            alarms.push({ time: timeVal, label: labelVal, active: true, triggeredToday: false });
+            document.getElementById('new-alarm-time').value = '';
+            document.getElementById('new-alarm-label').value = '';
+            renderAlarms();
+        }
+
+        function deleteAlarm(index) { alarms.splice(index, 1); renderAlarms(); }
+        function toggleActive(index) { alarms[index].active = !alarms[index].active; renderAlarms(); }
+
+        function playBeep() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.type = 'sine'; osc.frequency.setValueAtTime(800, audioCtx.currentTime); 
+            gain.gain.setValueAtTime(1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15); 
+            osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+        }
+
+        function triggerAlarm(label) {
+            initAudio();
+            if (activeAlarmInterval) clearInterval(activeAlarmInterval);
+            activeAlarmInterval = setInterval(playBeep, 200);
+            ringingText.innerText = `ALARM: ${label || 'Time is up!'}`;
+            ringingBox.style.display = 'flex';
+        }
+
+        function stopAlarm() {
+            if (activeAlarmInterval) { clearInterval(activeAlarmInterval); activeAlarmInterval = null; }
+            ringingBox.style.display = 'none';
+            if (studyState === 'study_ringing') startBreak();
+            else if (studyState === 'break_ringing') cancelStudy();
+        }
+
+        function checkAlarms(now) {
+            const currentHHMM = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+            const currentSec = now.getSeconds();
+            if (currentSec === 0) {
+                alarms.forEach(a => { if (a.active && a.time === currentHHMM && !a.triggeredToday) { triggerAlarm(a.label); a.triggeredToday = true; } });
+            } else if (currentSec === 1) { alarms.forEach(a => a.triggeredToday = false); }
+        }
+
+        // --- Main Clock/Timer Update Loop ---
+        function updateDisplay() {
+            const now = new Date();
+            checkAlarms(now);
+
+            // Clock
+            let ch = now.getHours() % 12; ch = ch ? ch : 12; 
+            document.getElementById('c-hours').innerText = String(ch).padStart(2, '0');
+            document.getElementById('c-minutes').innerText = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('c-seconds').innerText = String(now.getSeconds()).padStart(2, '0');
+
+            // Timer
+            if (timerRunning) {
+                let thEl = document.getElementById('t-hours'), tmEl = document.getElementById('t-minutes'), tsEl = document.getElementById('t-seconds');
+                let total = (parseInt(thEl.innerText) || 0) * 3600 + (parseInt(tmEl.innerText) || 0) * 60 + (parseInt(tsEl.innerText) || 0);
+                total--;
+                if (total <= 0) { total = 0; timerRunning = false; if (mode === 'timer') btn.innerText = "Start"; triggerAlarm("TIMER DONE"); }
+                thEl.innerText = String(Math.floor(total / 3600)).padStart(2, '0'); tmEl.innerText = String(Math.floor((total % 3600) / 60)).padStart(2, '0'); tsEl.innerText = String(total % 60).padStart(2, '0');
+            }
+
+            // Stopwatch
+            if (stopwatchRunning) {
+                let swhEl = document.getElementById('sw-hours'), swmEl = document.getElementById('sw-minutes'), swsEl = document.getElementById('sw-seconds');
+                let total = (parseInt(swhEl.innerText) || 0) * 3600 + (parseInt(swmEl.innerText) || 0) * 60 + (parseInt(swsEl.innerText) || 0);
+                total++;
+                swhEl.innerText = String(Math.floor(total / 3600)).padStart(2, '0'); swmEl.innerText = String(Math.floor((total % 3600) / 60)).padStart(2, '0'); swsEl.innerText = String(total % 60).padStart(2, '0');
+            }
+
+            // Function to log study time safely
+            const logStudyTime = () => {
+                const offset = now.getTimezoneOffset() * 60000;
+                const dateStr = (new Date(now - offset)).toISOString().split('T')[0];
+                if (!studyStats[dateStr]) studyStats[dateStr] = 0;
+                studyStats[dateStr]++;
+                if (now.getSeconds() % 5 === 0) {
+                    localStorage.setItem('focus_study_stats', JSON.stringify(studyStats));
+                }
+            };
+
+            // Study Presets Background Run
+            if (studyState === 'study' || studyState === 'break') {
+                if (studyState === 'study') logStudyTime();
+                
+                currentStudySecs--;
+                if (currentStudySecs <= 0) {
+                    currentStudySecs = 0;
+                    if (studyState === 'study') {
+                        studyState = 'study_ringing';
+                        triggerAlarm("STUDY DONE. CLICK STOP FOR BREAK.");
+                    } else if (studyState === 'break') {
+                        studyState = 'break_ringing';
+                        triggerAlarm("BREAK DONE. GET BACK TO WORK.");
+                    }
+                }
+                updateStudyDisplay();
+            }
+
+            // Study Stopwatch Background Run
+            if (isStudyStopwatchRunning) {
+                logStudyTime();
+                studyStopwatchSecs++;
+                
+                let h = Math.floor(studyStopwatchSecs / 3600);
+                let m = Math.floor((studyStopwatchSecs % 3600) / 60);
+                let s = studyStopwatchSecs % 60;
+                document.getElementById('ssw-hours').innerText = String(h).padStart(2, '0');
+                document.getElementById('ssw-minutes').innerText = String(m).padStart(2, '0');
+                document.getElementById('ssw-seconds').innerText = String(s).padStart(2, '0');
+            }
+        }
+
+        function toggle() {
+            initAudio(); 
+            if (mode === 'timer') {
+                timerRunning = !timerRunning; btn.innerText = timerRunning ? "Stop" : "Start";
+                document.getElementById('t-hours').contentEditable = !timerRunning; document.getElementById('t-minutes').contentEditable = !timerRunning; document.getElementById('t-seconds').contentEditable = !timerRunning;
+            } else if (mode === 'stopwatch') {
+                stopwatchRunning = !stopwatchRunning; btn.innerText = stopwatchRunning ? "Stop" : "Start";
+                document.getElementById('sw-hours').contentEditable = !stopwatchRunning; document.getElementById('sw-minutes').contentEditable = !stopwatchRunning; document.getElementById('sw-seconds').contentEditable = !stopwatchRunning;
+            }
+        }
+
+        function resetTime() {
+            if (mode === 'timer') {
+                timerRunning = false; btn.innerText = "Start";
+                document.getElementById('t-hours').innerText = "02"; document.getElementById('t-minutes').innerText = "00"; document.getElementById('t-seconds').innerText = "00";
+                document.getElementById('t-hours').contentEditable = true; document.getElementById('t-minutes').contentEditable = true; document.getElementById('t-seconds').contentEditable = true;
+            } else if (mode === 'stopwatch') {
+                stopwatchRunning = false; btn.innerText = "Start";
+                document.getElementById('sw-hours').innerText = "00"; document.getElementById('sw-minutes').innerText = "00"; document.getElementById('sw-seconds').innerText = "00";
+                document.getElementById('sw-hours').contentEditable = true; document.getElementById('sw-minutes').contentEditable = true; document.getElementById('sw-seconds').contentEditable = true;
+            }
+        }
+
+        function changeMode() {
+            mode = document.getElementById('mode-select').value;
+            
+            const isClock = mode === 'clock', isAlarm = mode === 'alarm', isTimer = mode === 'timer', isStopwatch = mode === 'stopwatch', isStudy = mode === 'study';
+            
+            timerDisplay.style.display = isTimer ? 'flex' : 'none';
+            stopwatchDisplay.style.display = isStopwatch ? 'flex' : 'none';
+            clockDisplay.style.display = isClock ? 'flex' : 'none'; 
+            alarmInterface.style.display = isAlarm ? 'flex' : 'none';
+            studyInterface.style.display = isStudy ? 'flex' : 'none';
+            
+            if (isStudy) {
+                if (studyState === 'idle') {
+                    studyNav.style.display = 'flex';
+                } else {
+                    studyNav.style.display = 'none';
+                    studyMainView.style.display = 'flex';
+                    studyStopwatchView.style.display = 'none';
+                    studyStatsView.style.display = 'none';
+                }
+                studyTimerDisplay.style.display = (studyState !== 'idle') ? 'flex' : 'none';
+            } else {
+                studyTimerDisplay.style.display = 'none';
+            }
+
+            btn.style.display = (isClock || isAlarm || isStudy) ? 'none' : 'inline-block';
+            resetBtn.style.display = (isClock || isAlarm || isStudy) ? 'none' : 'inline-block';
+
+            if (isTimer) btn.innerText = timerRunning ? "Stop" : "Start";
+            if (isStopwatch) btn.innerText = stopwatchRunning ? "Stop" : "Start";
+
+            if (isAlarm) {
+                if (!['ALARMS', 'CLOCK', 'STUDY PRESETS', 'STUDY STOPWATCH', 'STUDYING', 'BREAK TIME'].includes(focusTitle.innerText)) focusTitle.dataset.savedText = focusTitle.innerText;
+                focusTitle.innerText = "ALARMS"; focusTitle.contentEditable = false;
+            } else if (isClock) {
+                if (!['ALARMS', 'CLOCK', 'STUDY PRESETS', 'STUDY STOPWATCH', 'STUDYING', 'BREAK TIME'].includes(focusTitle.innerText)) focusTitle.dataset.savedText = focusTitle.innerText;
+                focusTitle.innerText = "CLOCK"; focusTitle.contentEditable = false;
+            } else if (isStudy) {
+                if (!['ALARMS', 'CLOCK', 'STUDY PRESETS', 'STUDY STOPWATCH', 'STUDYING', 'BREAK TIME'].includes(focusTitle.innerText)) focusTitle.dataset.savedText = focusTitle.innerText;
+                if (studyState === 'idle') {
+                    focusTitle.innerText = isStudyStopwatchRunning ? "STUDYING" : "STUDY PRESETS";
+                }
+                else if (studyState === 'study' || studyState === 'study_ringing') focusTitle.innerText = "STUDYING";
+                else focusTitle.innerText = "BREAK TIME";
+                focusTitle.contentEditable = false;
+            } else {
+                focusTitle.innerText = focusTitle.dataset.savedText || "STUDY"; focusTitle.contentEditable = true;
+            }
+
+            updateDisplay(); 
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(err => console.log(err));
+            else if (document.exitFullscreen) document.exitFullscreen();
+        }
+
+        setInterval(updateDisplay, 1000);
+    </script>
+</body>
+</html>
