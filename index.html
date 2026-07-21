@@ -245,7 +245,10 @@
                         <button onclick="addCustomPreset()">+</button>
                     </div>
                 </div>
-                <button class="btn-icon" id="study-cancel-btn" onclick="cancelStudy()" style="display: none; margin-top: 10px;">⏹</button>
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <button class="btn-icon" id="study-pause-btn" onclick="toggleStudyPause()" style="display: none;">⏸</button>
+                    <button class="btn-icon" id="study-cancel-btn" onclick="cancelStudy()" style="display: none;">⏹</button>
+                </div>
             </div>
 
             <!-- Study Stopwatch View -->
@@ -313,6 +316,7 @@
         let studyState = 'idle'; 
         let currentStudySecs = 0;
         let pendingBreakMins = 0;
+        let studyPaused = false;
 
         let isStudyStopwatchRunning = false;
         let studyStopwatchSecs = 0;
@@ -344,6 +348,7 @@
         
         const studyPresets = document.getElementById('study-presets');
         const studyCancelBtn = document.getElementById('study-cancel-btn');
+        const studyPauseBtn = document.getElementById('study-pause-btn');
         const customPresetsContainer = document.getElementById('custom-presets-container');
         const statsGraph = document.getElementById('stats-graph');
         const calendarHeatmap = document.getElementById('calendar-heatmap');
@@ -592,28 +597,43 @@
             pendingBreakMins = breakM;
             currentStudySecs = studyM * 60;
             studyState = 'study';
+            studyPaused = false;
             
             if (mode === 'study') focusTitle.innerText = "STUDYING";
             studyNav.style.display = 'none'; 
             studyPresets.style.display = 'none';
             studyTimerDisplay.style.display = 'flex';
             studyCancelBtn.style.display = 'block';
+            studyPauseBtn.style.display = 'block';
+            studyPauseBtn.innerText = '⏸';
             updateStudyDisplay();
         }
 
         function startBreak() {
             currentStudySecs = pendingBreakMins * 60;
             studyState = 'break';
+            studyPaused = false;
+            studyPauseBtn.innerText = '⏸';
             if (mode === 'study') focusTitle.innerText = "BREAK TIME";
             updateStudyDisplay();
         }
 
+        function toggleStudyPause() {
+            if (studyState !== 'study' && studyState !== 'break') return;
+            studyPaused = !studyPaused;
+            studyPauseBtn.innerText = studyPaused ? '▶' : '⏸';
+            if (mode === 'study' && studyPaused) focusTitle.innerText = "PAUSED";
+            else if (mode === 'study') focusTitle.innerText = studyState === 'study' ? "STUDYING" : "BREAK TIME";
+        }
+
         function cancelStudy() {
             studyState = 'idle';
+            studyPaused = false;
             studyNav.style.display = 'flex';
             studyPresets.style.display = 'flex';
             studyTimerDisplay.style.display = 'none';
             studyCancelBtn.style.display = 'none';
+            studyPauseBtn.style.display = 'none';
             if (mode === 'study') focusTitle.innerText = "STUDY PRESETS";
         }
 
@@ -738,7 +758,7 @@
             };
 
             // Study Presets Background Run
-            if (studyState === 'study' || studyState === 'break') {
+            if ((studyState === 'study' || studyState === 'break') && !studyPaused) {
                 if (studyState === 'study') logStudyTime();
                 
                 currentStudySecs--;
