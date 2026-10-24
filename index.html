@@ -224,6 +224,19 @@
         .streak-today { font-size: 0.8rem; color: var(--text-muted); font-weight: 700; }
         .streak-box .plan-progress { background: var(--card-bg); }
         .goal-input { width: 70px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--input-border); outline: none; font-size: 0.8rem; font-family: inherit; font-weight: 700; background: var(--input-bg); text-align: center; }
+        .exam-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 14px; max-width: 560px; }
+        .exam-chip { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; background: var(--btn-light); font-size: 0.8rem; font-weight: 700; }
+        .exam-chip .days { color: var(--text-muted); }
+        .exam-chip.soon .days { color: #d9534f; }
+        .exam-chip button { background: none; border: none; color: #d9534f; cursor: pointer; font-size: 1rem; padding: 0; line-height: 1; }
+        .exam-form { display: flex; gap: 6px; }
+        .exam-form input { width: 110px; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--input-border); outline: none; font-size: 0.8rem; font-family: inherit; background: var(--input-bg); }
+        .exam-form input[type="date"] { width: 140px; }
+        .exam-form button { background: var(--btn-dark); color: var(--btn-text); border: none; padding: 0 12px; border-radius: 8px; font-weight: 700; cursor: pointer; }
+        .streak-extra { font-size: 0.75rem; color: var(--text-muted); font-weight: 700; }
+        #distract-btn { display: none; position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); z-index: 30; border: none; background: var(--btn-light); color: var(--text-main); padding: 8px 16px; border-radius: 20px; font-weight: 700; font-size: 0.8rem; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.08); transition: transform 0.1s; }
+        #distract-btn:active { transform: translateX(-50%) scale(0.95); }
+        .settings-btn { border: none; background: var(--btn-dark); color: var(--btn-text); padding: 6px 12px; border-radius: 8px; font-weight: 700; font-size: 0.75rem; cursor: pointer; }
         .subject-stats { width: 100%; margin-top: 20px; display: flex; flex-direction: column; gap: 6px; }
         .subject-row { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; padding: 8px 12px; background: var(--btn-light); border-radius: 8px; }
 
@@ -295,6 +308,7 @@
 
         <!-- Planner Interface Tab -->
         <div id="planner-interface">
+            <div class="exam-row" id="exam-row"></div>
             <div class="day-strip" id="day-strip"></div>
             <div class="plan-carousel" id="plan-carousel"></div>
             <div class="plan-form">
@@ -350,6 +364,7 @@
                         <span class="streak-today" id="streak-today"></span>
                     </div>
                     <div class="plan-progress"><div id="streak-bar"></div></div>
+                    <div class="streak-extra" id="distract-stats"></div>
                 </div>
                 <div class="stats-header">Past 7 Days</div>
                 <div class="graph-container" id="stats-graph"></div>
@@ -391,6 +406,8 @@
         </div>
     </div>
 
+    <button id="distract-btn" onclick="logDistraction()">😵 Distracted</button>
+
     <select class="mode-selector" id="mode-select" onchange="changeMode()"></select>
 
     <div id="settings-panel">
@@ -400,8 +417,18 @@
             <button class="toggle-btn off" id="dark-toggle" onclick="toggleDarkMode()">OFF</button>
         </div>
         <div class="reorder-item">
+            <span>Notifications</span>
+            <button class="toggle-btn off" id="notify-toggle" onclick="toggleNotifications()">OFF</button>
+        </div>
+        <div class="reorder-item">
             <span>Daily goal (hours)</span>
             <input type="number" class="goal-input" id="daily-goal" min="0.25" step="0.25" onchange="setDailyGoal(this.value)">
+        </div>
+        <div class="reorder-title">BACKUP</div>
+        <div class="reorder-item">
+            <button class="settings-btn" onclick="exportData()">Export</button>
+            <button class="settings-btn" onclick="document.getElementById('import-file').click()">Import</button>
+            <input type="file" id="import-file" accept="application/json,.json" style="display: none;" onchange="importData(this)">
         </div>
         <div class="reorder-title">REORDER MODES</div>
         <div id="reorder-list"></div>
@@ -434,6 +461,8 @@
         let activePlan = null; // { day, index }
         let pomodoroPlan = null; // planner card a study preset is counting toward
         let pomoChooser = null; // index of card showing preset choices
+        let exams = JSON.parse(localStorage.getItem('focus_exams')) || [];
+        let distractions = JSON.parse(localStorage.getItem('focus_distractions')) || {};
         let dailyGoal = parseFloat(localStorage.getItem('focus_daily_goal')) || 2;
 
         let alarms = [];
@@ -505,6 +534,7 @@
         }
 
         applyDarkMode(localStorage.getItem('focus_dark_mode') === '1');
+        applyNotifyToggle();
 
         function renderReorderList() {
             const list = document.getElementById('reorder-list');
@@ -817,6 +847,7 @@
         function selectPlanDay(day) { selectedPlanDay = day; renderPlanner(); }
 
         function renderPlanner() {
+            renderExams();
             const todayKey = dateKey(new Date());
             const week = currentWeek();
             if (!selectedPlanDay) selectedPlanDay = todayKey;
@@ -944,6 +975,119 @@
             return true;
         }
 
+        // --- Exam countdown ---
+        function daysUntil(dateStr) {
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const now = new Date();
+            return Math.round((new Date(y, m - 1, d) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+        }
+
+        function renderExams() {
+            const upcoming = exams.map((e, i) => ({ ...e, i, days: daysUntil(e.date) })).filter(e => e.days >= 0).sort((a, b) => a.days - b.days);
+            document.getElementById('exam-row').innerHTML = upcoming.map(e => `
+                <div class="exam-chip ${e.days <= 7 ? 'soon' : ''}">
+                    <span>${escapeHtml(e.name)}</span>
+                    <span class="days">${e.days === 0 ? 'Today!' : e.days === 1 ? '1 day' : e.days + ' days'}</span>
+                    <button onclick="deleteExam(${e.i})" title="Remove">×</button>
+                </div>`).join('') + `
+                <div class="exam-form">
+                    <input type="text" id="exam-name" placeholder="Exam (e.g. SAT)" maxlength="20">
+                    <input type="date" id="exam-date">
+                    <button onclick="addExam()" title="Add exam">+</button>
+                </div>`;
+        }
+
+        function addExam() {
+            const name = document.getElementById('exam-name').value.trim();
+            const date = document.getElementById('exam-date').value;
+            if (!name || !date) return;
+            exams.push({ name, date });
+            localStorage.setItem('focus_exams', JSON.stringify(exams));
+            renderExams();
+        }
+
+        function deleteExam(index) {
+            exams.splice(index, 1);
+            localStorage.setItem('focus_exams', JSON.stringify(exams));
+            renderExams();
+        }
+
+        // --- Distraction counter ---
+        function isStudying() {
+            return studyState === 'study' && !studyPaused || isStudyStopwatchRunning || !!activePlan;
+        }
+
+        function logDistraction() {
+            const key = dateKey(new Date());
+            distractions[key] = (distractions[key] || 0) + 1;
+            localStorage.setItem('focus_distractions', JSON.stringify(distractions));
+            const b = document.getElementById('distract-btn');
+            b.innerText = `😵 Distracted (${distractions[key]} today)`;
+        }
+
+        // --- Notifications ---
+        function applyNotifyToggle() {
+            const on = localStorage.getItem('focus_notify') === '1' && 'Notification' in window && Notification.permission === 'granted';
+            const toggle = document.getElementById('notify-toggle');
+            toggle.className = on ? 'toggle-btn on' : 'toggle-btn off';
+            toggle.innerText = on ? 'ON' : 'OFF';
+            return on;
+        }
+
+        async function toggleNotifications() {
+            if (!('Notification' in window)) { alert('Notifications are not supported here. On iPad, add the app to your Home Screen first.'); return; }
+            if (localStorage.getItem('focus_notify') === '1') {
+                localStorage.setItem('focus_notify', '0');
+            } else {
+                const perm = await Notification.requestPermission();
+                if (perm !== 'granted') alert('Notifications are blocked. Allow them in your browser settings.');
+                localStorage.setItem('focus_notify', perm === 'granted' ? '1' : '0');
+            }
+            applyNotifyToggle();
+        }
+
+        function sendNotification(text) {
+            if (!applyNotifyToggle()) return;
+            const opts = { body: text, icon: 'icons/icon-192.png', tag: 'focus-alarm' };
+            if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+                navigator.serviceWorker.ready.then(reg => reg.showNotification('focus', opts));
+            } else {
+                try { new Notification('focus', opts); } catch (e) { console.log(e); }
+            }
+        }
+
+        // --- Backup / restore ---
+        function exportData() {
+            const data = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k.startsWith('focus_')) data[k] = localStorage.getItem(k);
+            }
+            savePlans(); // make sure the latest seconds are included
+            data.focus_planner = localStorage.getItem('focus_planner');
+            const blob = new Blob([JSON.stringify({ app: 'focus', exported: new Date().toISOString(), data }, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `focus-backup-${dateKey(new Date())}.json`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }
+
+        function importData(input) {
+            const file = input.files[0];
+            input.value = '';
+            if (!file) return;
+            file.text().then(text => {
+                let parsed;
+                try { parsed = JSON.parse(text); } catch (e) { alert('That file is not a valid backup.'); return; }
+                if (!parsed || parsed.app !== 'focus' || typeof parsed.data !== 'object') { alert('That file is not a focus backup.'); return; }
+                if (!confirm('Replace all current data with this backup?')) return;
+                Object.keys(localStorage).filter(k => k.startsWith('focus_')).forEach(k => localStorage.removeItem(k));
+                Object.entries(parsed.data).forEach(([k, v]) => { if (k.startsWith('focus_') && typeof v === 'string') localStorage.setItem(k, v); });
+                location.reload();
+            });
+        }
+
         // --- Daily goal & streak ---
         function setDailyGoal(val) {
             const v = parseFloat(val);
@@ -963,6 +1107,10 @@
             while ((studyStats[dateKey(d)] || 0) >= goalSecs) { streak++; d.setDate(d.getDate() - 1); }
             document.getElementById('streak-count').innerText = `🔥 ${streak}-day streak`;
             document.getElementById('streak-today').innerText = `TODAY ${formatHours(todaySecs)} / ${dailyGoal}h`;
+            let weekDistract = 0;
+            for (let i = 0; i < 7; i++) weekDistract += distractions[dateKey(new Date(today.getFullYear(), today.getMonth(), today.getDate() - i))] || 0;
+            const todayDistract = distractions[dateKey(today)] || 0;
+            document.getElementById('distract-stats').innerText = `😵 ${todayDistract} distraction${todayDistract === 1 ? '' : 's'} today · ${weekDistract} in the last 7 days`;
             document.getElementById('streak-bar').style.width = `${Math.min(100, (todaySecs / goalSecs) * 100)}%`;
         }
 
@@ -1035,6 +1183,7 @@
             activeAlarmInterval = setInterval(playBeep, 200);
             ringingText.innerText = `ALARM: ${label || 'Time is up!'}`;
             ringingBox.style.display = 'flex';
+            sendNotification(label || 'Time is up!');
         }
 
         function stopAlarm() {
@@ -1100,6 +1249,11 @@
                 }
                 updateStudyDisplay();
             }
+
+            const distractBtn = document.getElementById('distract-btn');
+            const studying = isStudying();
+            if (studying && distractBtn.style.display !== 'block') distractBtn.innerText = `😵 Distracted${distractions[dateKey(now)] ? ` (${distractions[dateKey(now)]} today)` : ''}`;
+            distractBtn.style.display = studying ? 'block' : 'none';
 
             // Planner Background Run
             if (activePlan) {
