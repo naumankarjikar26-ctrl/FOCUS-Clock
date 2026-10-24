@@ -152,6 +152,33 @@
         
         /* Ringing Overlay */
         .alarm-ringing { position: absolute; top: 20px; background: var(--btn-dark); color: #fff; padding: 15px 25px; border-radius: 30px; font-weight: 700; letter-spacing: 1px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: slideDown 0.3s ease-out; z-index: 100; display: none; align-items: center; gap: 15px; }
+        /* Planner Mode */
+        #planner-interface { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 720px; z-index: 10; margin-top: 10px; }
+        .day-strip { display: flex; gap: 8px; margin-bottom: 18px; }
+        .day-btn { width: 52px; padding: 8px 0; border-radius: 10px; border: none; background: var(--btn-light); color: var(--text-muted); font-weight: 700; font-size: 0.8rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; transition: all 0.2s; }
+        .day-btn small { font-size: 0.65rem; font-weight: 600; }
+        .day-btn.today { color: var(--text-main); }
+        .day-btn.active { background: var(--btn-dark); color: #fff; }
+        .plan-carousel { display: flex; gap: 16px; width: 100%; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; padding: 6px 40px 14px; scrollbar-width: none; mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); -webkit-mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
+        .plan-carousel::-webkit-scrollbar { display: none; }
+        .plan-card { flex: 0 0 260px; scroll-snap-align: center; background: var(--card-bg); border: 2px solid #eaeaea; border-radius: 18px; padding: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); display: flex; flex-direction: column; gap: 10px; position: relative; }
+        .plan-card.running { border-color: var(--btn-dark); }
+        .plan-subject { font-size: 1.3rem; font-weight: 800; padding-right: 24px; overflow-wrap: anywhere; }
+        .plan-item { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; min-height: 1em; overflow-wrap: anywhere; }
+        .plan-progress { height: 8px; background: var(--btn-light); border-radius: 4px; overflow: hidden; }
+        .plan-progress div { height: 100%; background: var(--btn-dark); border-radius: 4px; transition: width 0.5s; }
+        .plan-meta { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; font-weight: 700; }
+        .plan-play { width: 40px; height: 40px; font-size: 0.95rem; }
+        .plan-delete { position: absolute; top: 12px; right: 12px; background: none; border: none; color: #d9534f; font-size: 1.2rem; cursor: pointer; padding: 0 4px; }
+        .plan-empty { color: var(--text-muted); font-size: 0.85rem; font-weight: 600; padding: 40px 0; text-align: center; width: 100%; }
+        .plan-form { display: flex; gap: 8px; width: 100%; max-width: 560px; margin-top: 10px; }
+        .plan-form input { flex: 1; min-width: 0; padding: 12px; border-radius: 8px; border: 1px solid #ddd; outline: none; font-size: 0.9rem; font-family: inherit; background: #fafafa; }
+        .plan-form input#plan-hours { flex: 0 0 80px; }
+        .plan-form button { background: var(--btn-dark); color: #fff; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 700; }
+        .plan-week { font-size: 0.75rem; color: var(--text-muted); font-weight: 700; margin-top: 12px; letter-spacing: 0.5px; }
+        .subject-stats { width: 100%; margin-top: 20px; display: flex; flex-direction: column; gap: 6px; }
+        .subject-row { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; padding: 8px 12px; background: var(--btn-light); border-radius: 8px; }
+
         .stop-alarm-btn { background: #fff; color: var(--btn-dark); border: none; padding: 8px 16px; border-radius: 20px; font-weight: 800; cursor: pointer; font-size: 0.85rem; transition: transform 0.1s; }
         .stop-alarm-btn:active { transform: scale(0.95); }
         @keyframes slideDown { from { top: -50px; opacity: 0; } to { top: 20px; opacity: 1; } }
@@ -218,6 +245,19 @@
             </div>
         </div>
 
+        <!-- Planner Interface Tab -->
+        <div id="planner-interface">
+            <div class="day-strip" id="day-strip"></div>
+            <div class="plan-carousel" id="plan-carousel"></div>
+            <div class="plan-form">
+                <input type="text" id="plan-subject" placeholder="Subject" maxlength="30">
+                <input type="number" id="plan-hours" placeholder="Hours" min="0.25" step="0.25">
+                <input type="text" id="plan-item" placeholder="Item (e.g. SAT Prep)" maxlength="40">
+                <button onclick="addPlan()">+</button>
+            </div>
+            <div class="plan-week" id="plan-week"></div>
+        </div>
+
         <!-- Study Interface Tab -->
         <div id="study-interface">
             
@@ -259,6 +299,11 @@
                 <div class="stats-header">Past 7 Days</div>
                 <div class="graph-container" id="stats-graph"></div>
                 
+                <div class="subject-stats">
+                    <div class="stats-header">By Subject</div>
+                    <div id="subject-stats"></div>
+                </div>
+
                 <div class="calendar-wrapper">
                     <div class="month-header">
                         <div class="stats-header">Monthly Activity</div>
@@ -320,6 +365,11 @@
         let customPresets = JSON.parse(localStorage.getItem('focus_custom_presets')) || [];
         let studyStats = JSON.parse(localStorage.getItem('focus_study_stats')) || {}; 
 
+        let plans = JSON.parse(localStorage.getItem('focus_planner')) || {};
+        let subjectStats = JSON.parse(localStorage.getItem('focus_subject_stats')) || {};
+        let selectedPlanDay = null;
+        let activePlan = null; // { day, index }
+
         let alarms = [];
         let audioCtx;
         let activeAlarmInterval = null;
@@ -347,6 +397,8 @@
         const statsGraph = document.getElementById('stats-graph');
         const calendarHeatmap = document.getElementById('calendar-heatmap');
 
+        const plannerInterface = document.getElementById('planner-interface');
+        const planCarousel = document.getElementById('plan-carousel');
         const alarmList = document.getElementById('alarm-list');
         const ringingBox = document.getElementById('alarm-ringing-box');
         const ringingText = document.getElementById('alarm-ringing-text');
@@ -354,8 +406,9 @@
         const musicPanel = document.getElementById('music-panel');
 
         // --- Mode order ---
-        const modeLabels = { timer: 'Timer', clock: 'Clock', alarm: 'Alarm', study: 'Study' };
-        let modeOrder = (JSON.parse(localStorage.getItem('focus_mode_order')) || ['timer', 'clock', 'alarm', 'study']).filter(m => modeLabels[m]);
+        const modeLabels = { timer: 'Timer', clock: 'Clock', alarm: 'Alarm', study: 'Study', planner: 'Planner' };
+        let modeOrder = (JSON.parse(localStorage.getItem('focus_mode_order')) || []).filter(m => modeLabels[m]);
+        Object.keys(modeLabels).forEach(m => { if (!modeOrder.includes(m)) modeOrder.push(m); });
 
         function renderModeSelect() {
             const select = document.getElementById('mode-select');
@@ -506,6 +559,7 @@
             if (tab === 'stats') {
                 renderGraph();
                 renderCalendar();
+                renderSubjectStats();
             }
         }
 
@@ -654,6 +708,106 @@
             document.getElementById('st-seconds').innerText = String(s).padStart(2, '0');
         }
 
+        // --- Planner Logic ---
+        function dateKey(d) {
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+
+        function currentWeek() {
+            const today = new Date();
+            const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - ((today.getDay() + 6) % 7));
+            return Array.from({ length: 7 }, (_, i) => new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i));
+        }
+
+        function savePlans() { localStorage.setItem('focus_planner', JSON.stringify(plans)); }
+
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        function formatHours(secs) {
+            const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60);
+            return h ? `${h}h ${m}m` : `${m}m`;
+        }
+
+        function selectPlanDay(day) { selectedPlanDay = day; renderPlanner(); }
+
+        function renderPlanner() {
+            const todayKey = dateKey(new Date());
+            const week = currentWeek();
+            if (!selectedPlanDay) selectedPlanDay = todayKey;
+
+            document.getElementById('day-strip').innerHTML = week.map(d => {
+                const key = dateKey(d);
+                const cls = ['day-btn', key === todayKey ? 'today' : '', key === selectedPlanDay ? 'active' : ''].join(' ');
+                return `<button class="${cls}" onclick="selectPlanDay('${key}')">${d.toLocaleDateString('en-US', { weekday: 'short' })}<small>${d.getDate()}</small></button>`;
+            }).join('');
+
+            const list = plans[selectedPlanDay] || [];
+            planCarousel.innerHTML = list.length ? list.map((p, i) => {
+                const running = activePlan && activePlan.day === selectedPlanDay && activePlan.index === i;
+                const pct = Math.min(100, (p.secs / (p.goal * 3600)) * 100);
+                return `<div class="plan-card ${running ? 'running' : ''}">
+                    <button class="plan-delete" onclick="deletePlan(${i})">×</button>
+                    <div class="plan-subject">${escapeHtml(p.subject)}</div>
+                    <div class="plan-item">${escapeHtml(p.item)}</div>
+                    <div class="plan-progress"><div style="width: ${pct}%"></div></div>
+                    <div class="plan-meta">
+                        <span id="plan-time-${i}">${formatHours(p.secs)} / ${p.goal}h</span>
+                        <button class="btn-icon plan-play" onclick="togglePlan(${i})">${running ? '⏸' : '▶'}</button>
+                    </div>
+                </div>`;
+            }).join('') : '<div class="plan-empty">No subjects planned for this day yet.</div>';
+
+            let planned = 0, done = 0;
+            week.forEach(d => (plans[dateKey(d)] || []).forEach(p => { planned += p.goal * 3600; done += p.secs; }));
+            document.getElementById('plan-week').innerText = `THIS WEEK: ${formatHours(done)} / ${formatHours(planned)}`;
+        }
+
+        function addPlan() {
+            const subject = document.getElementById('plan-subject').value.trim();
+            const goal = parseFloat(document.getElementById('plan-hours').value);
+            const item = document.getElementById('plan-item').value.trim();
+            if (!subject || !(goal > 0)) return;
+            (plans[selectedPlanDay] = plans[selectedPlanDay] || []).push({ subject, item, goal, secs: 0 });
+            savePlans();
+            ['plan-subject', 'plan-hours', 'plan-item'].forEach(id => document.getElementById(id).value = '');
+            renderPlanner();
+            planCarousel.scrollLeft = planCarousel.scrollWidth;
+        }
+
+        function deletePlan(index) {
+            if (activePlan && activePlan.day === selectedPlanDay) {
+                if (activePlan.index === index) activePlan = null;
+                else if (activePlan.index > index) activePlan.index--;
+            }
+            plans[selectedPlanDay].splice(index, 1);
+            savePlans();
+            renderPlanner();
+        }
+
+        function togglePlan(index) {
+            const same = activePlan && activePlan.day === selectedPlanDay && activePlan.index === index;
+            activePlan = same ? null : { day: selectedPlanDay, index };
+            savePlans();
+            localStorage.setItem('focus_subject_stats', JSON.stringify(subjectStats));
+            renderPlanner();
+        }
+
+        function renderSubjectStats() {
+            const rows = Object.entries(subjectStats).sort((a, b) => b[1] - a[1]);
+            document.getElementById('subject-stats').innerHTML = rows.length
+                ? rows.map(([s, secs]) => `<div class="subject-row"><span>${escapeHtml(s)}</span><span>${formatHours(secs)}</span></div>`).join('')
+                : '<div class="subject-row"><span>No planner sessions yet</span></div>';
+        }
+
+        // Scroll wheel flips through cards
+        planCarousel.addEventListener('wheel', e => {
+            if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+            e.preventDefault();
+            planCarousel.scrollBy({ left: e.deltaY > 0 ? 276 : -276 });
+        }, { passive: false });
+
         // --- Study Stopwatch Logic ---
         function toggleStudyStopwatch() {
             isStudyStopwatchRunning = !isStudyStopwatchRunning;
@@ -775,6 +929,26 @@
                 updateStudyDisplay();
             }
 
+            // Planner Background Run
+            if (activePlan) {
+                const p = (plans[activePlan.day] || [])[activePlan.index];
+                if (p) {
+                    logStudyTime();
+                    p.secs++;
+                    subjectStats[p.subject] = (subjectStats[p.subject] || 0) + 1;
+                    if (now.getSeconds() % 5 === 0) {
+                        savePlans();
+                        localStorage.setItem('focus_subject_stats', JSON.stringify(subjectStats));
+                    }
+                    if (mode === 'planner' && selectedPlanDay === activePlan.day) {
+                        const label = document.getElementById(`plan-time-${activePlan.index}`);
+                        if (label) label.innerText = `${formatHours(p.secs)} / ${p.goal}h`;
+                        const bar = label && label.closest('.plan-card').querySelector('.plan-progress div');
+                        if (bar) bar.style.width = `${Math.min(100, (p.secs / (p.goal * 3600)) * 100)}%`;
+                    }
+                } else activePlan = null;
+            }
+
             // Study Stopwatch Background Run
             if (isStudyStopwatchRunning) {
                 logStudyTime();
@@ -808,12 +982,14 @@
         function changeMode() {
             mode = document.getElementById('mode-select').value;
             
-            const isClock = mode === 'clock', isAlarm = mode === 'alarm', isTimer = mode === 'timer', isStudy = mode === 'study';
+            const isClock = mode === 'clock', isAlarm = mode === 'alarm', isTimer = mode === 'timer', isStudy = mode === 'study', isPlanner = mode === 'planner';
             
             timerDisplay.style.display = isTimer ? 'flex' : 'none';
             clockDisplay.style.display = isClock ? 'flex' : 'none'; 
             alarmInterface.style.display = isAlarm ? 'flex' : 'none';
             studyInterface.style.display = isStudy ? 'flex' : 'none';
+            plannerInterface.style.display = isPlanner ? 'flex' : 'none';
+            if (isPlanner) renderPlanner();
             
             if (isStudy) {
                 if (studyState === 'idle') {
@@ -829,25 +1005,28 @@
                 studyTimerDisplay.style.display = 'none';
             }
 
-            btn.style.display = (isClock || isAlarm || isStudy) ? 'none' : 'inline-block';
-            resetBtn.style.display = (isClock || isAlarm || isStudy) ? 'none' : 'inline-block';
+            btn.style.display = (isClock || isAlarm || isStudy || isPlanner) ? 'none' : 'inline-block';
+            resetBtn.style.display = (isClock || isAlarm || isStudy || isPlanner) ? 'none' : 'inline-block';
 
             if (isTimer) btn.innerText = timerRunning ? "Stop" : "Start";
 
             if (isAlarm) {
-                if (!['ALARMS', 'CLOCK', 'STUDY PRESETS', 'STUDY STOPWATCH', 'STUDYING', 'BREAK TIME'].includes(focusTitle.innerText)) focusTitle.dataset.savedText = focusTitle.innerText;
+                if (!['ALARMS', 'CLOCK', 'STUDY PRESETS', 'STUDY STOPWATCH', 'STUDYING', 'BREAK TIME', 'PLANNER'].includes(focusTitle.innerText)) focusTitle.dataset.savedText = focusTitle.innerText;
                 focusTitle.innerText = "ALARMS"; focusTitle.contentEditable = false;
             } else if (isClock) {
-                if (!['ALARMS', 'CLOCK', 'STUDY PRESETS', 'STUDY STOPWATCH', 'STUDYING', 'BREAK TIME'].includes(focusTitle.innerText)) focusTitle.dataset.savedText = focusTitle.innerText;
+                if (!['ALARMS', 'CLOCK', 'STUDY PRESETS', 'STUDY STOPWATCH', 'STUDYING', 'BREAK TIME', 'PLANNER'].includes(focusTitle.innerText)) focusTitle.dataset.savedText = focusTitle.innerText;
                 focusTitle.innerText = "CLOCK"; focusTitle.contentEditable = false;
             } else if (isStudy) {
-                if (!['ALARMS', 'CLOCK', 'STUDY PRESETS', 'STUDY STOPWATCH', 'STUDYING', 'BREAK TIME'].includes(focusTitle.innerText)) focusTitle.dataset.savedText = focusTitle.innerText;
+                if (!['ALARMS', 'CLOCK', 'STUDY PRESETS', 'STUDY STOPWATCH', 'STUDYING', 'BREAK TIME', 'PLANNER'].includes(focusTitle.innerText)) focusTitle.dataset.savedText = focusTitle.innerText;
                 if (studyState === 'idle') {
                     focusTitle.innerText = isStudyStopwatchRunning ? "STUDYING" : "STUDY PRESETS";
                 }
                 else if (studyState === 'study' || studyState === 'study_ringing') focusTitle.innerText = "STUDYING";
                 else focusTitle.innerText = "BREAK TIME";
                 focusTitle.contentEditable = false;
+            } else if (isPlanner) {
+                if (!['ALARMS', 'CLOCK', 'STUDY PRESETS', 'STUDY STOPWATCH', 'STUDYING', 'BREAK TIME', 'PLANNER'].includes(focusTitle.innerText)) focusTitle.dataset.savedText = focusTitle.innerText;
+                focusTitle.innerText = "PLANNER"; focusTitle.contentEditable = false;
             } else {
                 focusTitle.innerText = focusTitle.dataset.savedText || "STUDY"; focusTitle.contentEditable = true;
             }
