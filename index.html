@@ -237,6 +237,11 @@
         #distract-btn { display: none; position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); z-index: 30; border: none; background: var(--btn-light); color: var(--text-main); padding: 8px 16px; border-radius: 20px; font-weight: 700; font-size: 0.8rem; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.08); transition: transform 0.1s; }
         #distract-btn:active { transform: translateX(-50%) scale(0.95); }
         .settings-btn { border: none; background: var(--btn-dark); color: var(--btn-text); padding: 6px 12px; border-radius: 8px; font-weight: 700; font-size: 0.75rem; cursor: pointer; }
+        .sync-box { display: flex; flex-direction: column; gap: 6px; }
+        .sync-box input { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--input-border); outline: none; font-size: 0.8rem; font-family: inherit; background: var(--input-bg); }
+        .sync-btns { display: flex; gap: 6px; }
+        .sync-btns .settings-btn { flex: 1; padding: 8px; }
+        .sync-status { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; overflow-wrap: anywhere; }
         .subject-stats { width: 100%; margin-top: 20px; display: flex; flex-direction: column; gap: 6px; }
         .subject-row { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; padding: 8px 12px; background: var(--btn-light); border-radius: 8px; }
 
@@ -423,6 +428,10 @@
         <div class="reorder-item">
             <span>Daily goal (hours)</span>
             <input type="number" class="goal-input" id="daily-goal" min="0.25" step="0.25" onchange="setDailyGoal(this.value)">
+        </div>
+        <div class="reorder-title">SYNC</div>
+        <div class="sync-box" id="sync-box">
+            <div class="sync-status">Sync is loading…</div>
         </div>
         <div class="reorder-title">BACKUP</div>
         <div class="reorder-item">
@@ -1056,6 +1065,28 @@
             }
         }
 
+        // --- Cloud sync hook: reload in-memory state after another device changes data ---
+        function reloadFocusState() {
+            customPresets = JSON.parse(localStorage.getItem('focus_custom_presets')) || [];
+            studyStats = JSON.parse(localStorage.getItem('focus_study_stats')) || {};
+            plans = JSON.parse(localStorage.getItem('focus_planner')) || {};
+            subjectStats = JSON.parse(localStorage.getItem('focus_subject_stats')) || {};
+            exams = JSON.parse(localStorage.getItem('focus_exams')) || [];
+            distractions = JSON.parse(localStorage.getItem('focus_distractions')) || {};
+            dailyGoal = parseFloat(localStorage.getItem('focus_daily_goal')) || 2;
+            modeOrder = (JSON.parse(localStorage.getItem('focus_mode_order')) || []).filter(m => modeLabels[m]);
+            Object.keys(modeLabels).forEach(m => { if (!modeOrder.includes(m)) modeOrder.push(m); });
+            if (activePlan && !(plans[activePlan.day] || [])[activePlan.index]) activePlan = null;
+            if (pomodoroPlan && !(plans[pomodoroPlan.day] || [])[pomodoroPlan.index]) pomodoroPlan = null;
+
+            applyDarkMode(localStorage.getItem('focus_dark_mode') === '1');
+            renderModeSelect();
+            renderCustomPresets();
+            if (document.getElementById('settings-panel').style.display === 'flex') renderReorderList();
+            if (mode === 'planner' && !plannerInterface.contains(document.activeElement)) renderPlanner();
+            if (studyStatsView.style.display === 'flex') { renderGraph(); renderCalendar(); renderSubjectStats(); renderStreak(); }
+        }
+
         // --- Backup / restore ---
         function exportData() {
             const data = {};
@@ -1356,6 +1387,154 @@
         // Offline / install support (needs https or localhost)
         if ('serviceWorker' in navigator && location.protocol !== 'file:') {
             navigator.serviceWorker.register('sw.js').catch(err => console.log(err));
+        }
+    </script>
+
+    <!-- Cloud sync (Firebase). Fill in FIREBASE_CONFIG to turn it on; see SYNC_SETUP.md -->
+    <script type="module">
+        const FIREBASE_CONFIG = null; // paste your firebaseConfig object here, e.g. { apiKey: "...", authDomain: "...", projectId: "...", ... }
+
+        const box = document.getElementById('sync-box');
+        const LOCAL_ONLY = ['focus_notify']; // per-device settings that should not sync
+        const isSynced = k => k && k.startsWith('focus_') && !LOCAL_ONLY.includes(k);
+
+        function setBox(html) { box.innerHTML = html; }
+
+        if (!FIREBASE_CONFIG) {
+            setBox('<div class="sync-status">Sync isn\'t set up yet. See SYNC_SETUP.md in the project.</div>');
+        } else {
+            startSync().catch(err => {
+                console.log(err);
+                setBox('<div class="sync-status">Sync is offline right now. Your data is still saved on this device.</div>');
+            });
+        }
+
+        async function startSync() {
+            const V = '10.12.2';
+            const { initializeApp } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`);
+            const { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
+            const { getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`);
+
+            const app = initializeApp(FIREBASE_CONFIG);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+            await setPersistence(auth, browserLocalPersistence);
+
+            let userRef = null, unsubscribe = null, applyingRemote = false, pushTimer = null;
+            const dirty = new Set();
+
+            // Watch local saves and push them (batched every few seconds)
+            const origSet = localStorage.setItem.bind(localStorage);
+            const origRemove = localStorage.removeItem.bind(localStorage);
+            localStorage.setItem = (k, v) => { origSet(k, v); if (!applyingRemote && isSynced(k)) queuePush(k); };
+            localStorage.removeItem = k => { origRemove(k); if (!applyingRemote && isSynced(k)) queuePush(k); };
+
+            function queuePush(k) {
+                if (!userRef) return;
+                dirty.add(k);
+                clearTimeout(pushTimer);
+                pushTimer = setTimeout(pushDirty, 3000);
+            }
+
+            async function pushDirty() {
+                if (!userRef || !dirty.size) return;
+                const data = {};
+                dirty.forEach(k => { data[k] = localStorage.getItem(k); });
+                dirty.clear();
+                try {
+                    await setDoc(userRef, { data, updated: serverTimestamp() }, { merge: true });
+                } catch (e) { console.log(e); Object.keys(data).forEach(k => dirty.add(k)); }
+            }
+            window.addEventListener('pagehide', pushDirty);
+            document.addEventListener('visibilitychange', () => { if (document.hidden) pushDirty(); });
+
+            function localData() {
+                const data = {};
+                Object.keys(localStorage).filter(isSynced).forEach(k => { data[k] = localStorage.getItem(k); });
+                return data;
+            }
+
+            function applyRemote(data) {
+                let changed = false;
+                applyingRemote = true;
+                Object.entries(data || {}).forEach(([k, v]) => {
+                    if (!isSynced(k) || dirty.has(k)) return; // a local change is about to be sent; keep it
+                    if (v === null) { if (localStorage.getItem(k) !== null) { localStorage.removeItem(k); changed = true; } }
+                    else if (localStorage.getItem(k) !== v) { localStorage.setItem(k, v); changed = true; }
+                });
+                applyingRemote = false;
+                if (changed) reloadFocusState();
+            }
+
+            async function connect(user) {
+                userRef = doc(db, 'users', user.uid);
+                const snap = await getDoc(userRef);
+                const remote = (snap.exists() && snap.data().data) || {};
+                const local = localData();
+                const hasRemote = Object.keys(remote).length > 0;
+                const differs = Object.keys(local).some(k => remote[k] !== local[k]);
+
+                if (!hasRemote) {
+                    await setDoc(userRef, { data: local, updated: serverTimestamp() });
+                } else if (Object.keys(local).length && differs && !confirm('Your account already has synced data.\n\nOK = use the synced data on this device\nCancel = replace the synced data with this device\'s data')) {
+                    const replace = { ...local };
+                    Object.keys(remote).forEach(k => { if (!(k in replace)) replace[k] = null; });
+                    await setDoc(userRef, { data: replace, updated: serverTimestamp() });
+                } else {
+                    applyRemote(remote);
+                }
+
+                unsubscribe = onSnapshot(userRef, s => {
+                    if (s.metadata.hasPendingWrites || !s.exists()) return;
+                    applyRemote(s.data().data);
+                });
+            }
+
+            function showSignedOut(msg = '') {
+                setBox(`
+                    <input type="email" id="sync-email" placeholder="Email" autocomplete="username">
+                    <input type="password" id="sync-pass" placeholder="Password (6+ characters)" autocomplete="current-password">
+                    <div class="sync-btns">
+                        <button class="settings-btn" id="sync-in">Sign in</button>
+                        <button class="settings-btn" id="sync-new">Create account</button>
+                    </div>
+                    <div class="sync-status">${msg || 'Sign in on each device to keep them in sync.'}</div>`);
+                const go = fn => async () => {
+                    const email = document.getElementById('sync-email').value.trim();
+                    const pass = document.getElementById('sync-pass').value;
+                    if (!email || !pass) return;
+                    box.querySelector('.sync-status').innerText = 'Connecting…';
+                    try { await fn(auth, email, pass); }
+                    catch (e) { showSignedOut(friendlyError(e)); }
+                };
+                document.getElementById('sync-in').onclick = go(signInWithEmailAndPassword);
+                document.getElementById('sync-new').onclick = go(createUserWithEmailAndPassword);
+            }
+
+            function friendlyError(e) {
+                const c = (e && e.code) || '';
+                if (c.includes('invalid-credential') || c.includes('wrong-password') || c.includes('user-not-found')) return 'Wrong email or password.';
+                if (c.includes('email-already-in-use')) return 'That email already has an account. Use Sign in.';
+                if (c.includes('weak-password')) return 'Password needs at least 6 characters.';
+                if (c.includes('invalid-email')) return 'That email doesn\'t look right.';
+                if (c.includes('network')) return 'No internet connection.';
+                return 'Couldn\'t sign in. ' + (e.message || '');
+            }
+
+            function showSignedIn(user) {
+                setBox(`
+                    <div class="sync-status">✅ Synced as ${user.email.replace(/[<>&]/g, '')}</div>
+                    <div class="sync-btns"><button class="settings-btn" id="sync-out">Sign out</button></div>`);
+                document.getElementById('sync-out').onclick = async () => { await pushDirty(); signOut(auth); };
+            }
+
+            onAuthStateChanged(auth, async user => {
+                if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+                userRef = null;
+                if (!user) { showSignedOut(); return; }
+                try { await connect(user); showSignedIn(user); }
+                catch (e) { console.log(e); showSignedOut('Couldn\'t load your synced data. Check the Firestore setup.'); }
+            });
         }
     </script>
 </body>
