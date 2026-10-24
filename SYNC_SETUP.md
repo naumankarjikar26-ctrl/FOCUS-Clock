@@ -9,7 +9,7 @@ Takes about 10 minutes, free.
 
 ## 2. Create a Firebase project
 1. Go to https://console.firebase.google.com and click **Create a project** (Google Analytics not needed).
-2. **Build → Authentication → Get started → Email/Password → Enable → Save.**
+2. **Authentication → Get started → Sign-in method → Google → Enable** (pick a support email) **→ Save.**
 3. **Authentication → Settings → Authorized domains → Add domain:** `<your-username>.github.io`
 4. **Build → Firestore Database → Create database** → pick a location → **Start in production mode**.
 5. In Firestore, open the **Rules** tab, replace everything with the contents of `firestore.rules` from this repo, and **Publish**.
@@ -25,8 +25,8 @@ Takes about 10 minutes, free.
    (These keys are safe to have in public code — the Firestore rules are what protect your data.)
 
 ## 4. Use it
-- Laptop: open the app → ⚙️ → **Sync** → **Create account**.
-- iPad: open the same link → ⚙️ → **Sync** → **Sign in** with the same email/password.
+- On each device: open the app → ⚙️ → **Sync** → **Sign in with Google**, using the same Google account.
+- On iPad, if sign-in fails inside the Home Screen app, sign in once in Safari first.
 - If a device already has its own data when you sign in, it asks which copy to keep.
 
 Changes show up on the other device within a few seconds. Without internet, everything keeps working and syncs once you're back online.

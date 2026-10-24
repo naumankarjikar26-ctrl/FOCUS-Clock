@@ -1419,7 +1419,7 @@
         async function startSync() {
             const V = '10.12.2';
             const { initializeApp } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`);
-            const { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
+            const { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut, setPersistence, browserLocalPersistence } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
             const { getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`);
 
             const app = initializeApp(FIREBASE_CONFIG);
@@ -1499,38 +1499,30 @@
 
             function showSignedOut(msg = '') {
                 setBox(`
-                    <input type="email" id="sync-email" placeholder="Email" autocomplete="username">
-                    <input type="password" id="sync-pass" placeholder="Password (6+ characters)" autocomplete="current-password">
-                    <div class="sync-btns">
-                        <button class="settings-btn" id="sync-in">Sign in</button>
-                        <button class="settings-btn" id="sync-new">Create account</button>
-                    </div>
-                    <div class="sync-status">${msg || 'Sign in on each device to keep them in sync.'}</div>`);
-                const go = fn => async () => {
-                    const email = document.getElementById('sync-email').value.trim();
-                    const pass = document.getElementById('sync-pass').value;
-                    if (!email || !pass) return;
+                    <div class="sync-btns"><button class="settings-btn" id="sync-google">Sign in with Google</button></div>
+                    <div class="sync-status">${msg || 'Sign in with the same Google account on each device to keep them in sync.'}</div>`);
+                document.getElementById('sync-google').onclick = async () => {
                     box.querySelector('.sync-status').innerText = 'Connecting…';
-                    try { await fn(auth, email, pass); }
-                    catch (e) { showSignedOut(friendlyError(e)); }
+                    const provider = new GoogleAuthProvider();
+                    provider.setCustomParameters({ prompt: 'select_account' });
+                    try {
+                        await signInWithPopup(auth, provider);
+                    } catch (e) {
+                        const c = (e && e.code) || '';
+                        // Pop-ups don't work in some places (e.g. iPad home-screen apps); fall back to a full-page sign-in
+                        if (c.includes('popup-blocked') || c.includes('operation-not-supported')) return signInWithRedirect(auth, provider);
+                        if (c.includes('popup-closed') || c.includes('cancelled-popup')) return showSignedOut();
+                        if (c.includes('unauthorized-domain')) return showSignedOut('This web address isn\'t on Firebase\'s Authorized domains list.');
+                        if (c.includes('operation-not-allowed')) return showSignedOut('Google sign-in isn\'t turned on in Firebase yet.');
+                        if (c.includes('network')) return showSignedOut('No internet connection.');
+                        showSignedOut('Couldn\'t sign in. ' + (e.message || ''));
+                    }
                 };
-                document.getElementById('sync-in').onclick = go(signInWithEmailAndPassword);
-                document.getElementById('sync-new').onclick = go(createUserWithEmailAndPassword);
-            }
-
-            function friendlyError(e) {
-                const c = (e && e.code) || '';
-                if (c.includes('invalid-credential') || c.includes('wrong-password') || c.includes('user-not-found')) return 'Wrong email or password.';
-                if (c.includes('email-already-in-use')) return 'That email already has an account. Use Sign in.';
-                if (c.includes('weak-password')) return 'Password needs at least 6 characters.';
-                if (c.includes('invalid-email')) return 'That email doesn\'t look right.';
-                if (c.includes('network')) return 'No internet connection.';
-                return 'Couldn\'t sign in. ' + (e.message || '');
             }
 
             function showSignedIn(user) {
                 setBox(`
-                    <div class="sync-status">✅ Synced as ${user.email.replace(/[<>&]/g, '')}</div>
+                    <div class="sync-status">✅ Synced as ${(user.email || user.displayName || 'you').replace(/[<>&]/g, '')}</div>
                     <div class="sync-btns"><button class="settings-btn" id="sync-out">Sign out</button></div>`);
                 document.getElementById('sync-out').onclick = async () => { await pushDirty(); signOut(auth); };
             }
