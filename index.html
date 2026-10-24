@@ -195,9 +195,16 @@
         .day-btn small { font-size: 0.65rem; font-weight: 600; }
         .day-btn.today { color: var(--text-main); }
         .day-btn.active { background: var(--btn-dark); color: var(--btn-text); }
-        .plan-carousel { display: flex; gap: 16px; width: 100%; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; padding: 6px 40px 14px; scrollbar-width: none; mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); -webkit-mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
-        .plan-carousel::-webkit-scrollbar { display: none; }
-        .plan-card { flex: 0 0 260px; scroll-snap-align: center; background: var(--card-bg); border: 2px solid var(--border); border-radius: 18px; padding: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); display: flex; flex-direction: column; gap: 10px; position: relative; }
+        .plan-carousel { display: grid; width: 320px; max-width: 100%; margin: 10px auto 0; padding: 0 0 24px; touch-action: pan-y; }
+        .plan-card { grid-area: 1 / 1; background: var(--card-bg); border: 2px solid var(--border); border-radius: 18px; padding: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.06); display: flex; flex-direction: column; gap: 10px; position: relative; transition: transform 0.35s ease, opacity 0.35s ease; transform-origin: 50% 100%; }
+        .plan-card[data-pos="0"] { z-index: 3; }
+        .plan-card[data-pos="1"] { z-index: 2; transform: translate(14px, 8px) rotate(4deg); background: var(--btn-light); border-color: var(--input-border); }
+        .plan-card[data-pos="2"] { z-index: 1; transform: translate(-14px, 12px) rotate(-4deg); background: var(--btn-light); border-color: var(--input-border); }
+        .plan-card[data-pos="hidden"] { z-index: 0; opacity: 0; transform: translateY(20px) scale(0.95); pointer-events: none; }
+        .plan-card:not([data-pos="0"]) > * { visibility: hidden; }
+        .plan-card:not([data-pos="0"]) { pointer-events: none; }
+        .deck-nav { display: flex; align-items: center; gap: 14px; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); }
+        .deck-nav button { width: 36px; height: 36px; font-size: 1rem; }
         .plan-card.running { border-color: var(--btn-dark); }
         .plan-subject { font-size: 1.3rem; font-weight: 800; padding-right: 24px; overflow-wrap: anywhere; }
         .plan-item { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; min-height: 1em; overflow-wrap: anywhere; }
@@ -317,6 +324,11 @@
             <div class="exam-row" id="exam-row"></div>
             <div class="day-strip" id="day-strip"></div>
             <div class="plan-carousel" id="plan-carousel"></div>
+            <div class="deck-nav" id="deck-nav">
+                <button class="btn-icon" onclick="flipDeck(-1)" title="Previous card">‹</button>
+                <span id="deck-count"></span>
+                <button class="btn-icon" onclick="flipDeck(1)" title="Next card">›</button>
+            </div>
             <div class="plan-form">
                 <input type="text" id="plan-subject" placeholder="Subject" maxlength="30">
                 <input type="number" id="plan-hours" placeholder="Hours" min="0.25" step="0.25">
@@ -470,6 +482,7 @@
         let selectedPlanDay = null;
         let activePlan = null; // { day, index }
         let pomodoroPlan = null; // planner card a study preset is counting toward
+        let deckIndex = 0; // which planner card is on top of the stack
         let pomoChooser = null; // index of card showing preset choices
         let exams = JSON.parse(localStorage.getItem('focus_exams')) || [];
         let distractions = JSON.parse(localStorage.getItem('focus_distractions')) || {};
@@ -854,7 +867,26 @@
             return h ? `${h}h ${m}m` : `${m}m`;
         }
 
-        function selectPlanDay(day) { selectedPlanDay = day; renderPlanner(); }
+        function selectPlanDay(day) { selectedPlanDay = day; deckIndex = 0; pomoChooser = null; renderPlanner(); }
+
+        // Lay the cards out as a stack: top card, two peeking behind, the rest hidden
+        function updateDeck() {
+            const cards = planCarousel.querySelectorAll('.plan-card');
+            const n = cards.length;
+            if (n) deckIndex = ((deckIndex % n) + n) % n;
+            cards.forEach((c, i) => {
+                const pos = (i - deckIndex + n) % n;
+                c.dataset.pos = pos <= 2 ? pos : 'hidden';
+            });
+            document.getElementById('deck-nav').style.display = n > 1 ? 'flex' : 'none';
+            document.getElementById('deck-count').innerText = `${deckIndex + 1} / ${n}`;
+        }
+
+        function flipDeck(dir) {
+            if (pomoChooser !== null) { pomoChooser = null; renderPlanner(); }
+            deckIndex += dir;
+            updateDeck();
+        }
 
         function renderPlanner() {
             renderExams();
@@ -890,6 +922,7 @@
                     <input class="plan-note" placeholder="Session note… (Enter to save)" maxlength="80" onkeydown="if (event.key === 'Enter') addPlanNote(${i}, this)">
                 </div>`;
             }).join('') : '<div class="plan-empty">No subjects planned for this day yet.</div>';
+            updateDeck();
 
             let planned = 0, done = 0;
             week.forEach(d => (plans[dateKey(d)] || []).forEach(p => { planned += p.goal * 3600; done += p.secs; }));
@@ -904,8 +937,8 @@
             (plans[selectedPlanDay] = plans[selectedPlanDay] || []).push({ subject, item, goal, secs: 0 });
             savePlans();
             ['plan-subject', 'plan-hours', 'plan-item'].forEach(id => document.getElementById(id).value = '');
+            deckIndex = plans[selectedPlanDay].length - 1;
             renderPlanner();
-            planCarousel.scrollLeft = planCarousel.scrollWidth;
         }
 
         function deletePlan(index) {
@@ -919,6 +952,7 @@
             }
             pomoChooser = null;
             plans[selectedPlanDay].splice(index, 1);
+            if (deckIndex >= index && deckIndex > 0) deckIndex--;
             savePlans();
             renderPlanner();
         }
@@ -1153,12 +1187,24 @@
                 : '<div class="subject-row"><span>No planner sessions yet</span></div>';
         }
 
-        // Scroll wheel flips through cards
+        // Scroll wheel or swipe flips through the deck
+        let lastFlip = 0;
         planCarousel.addEventListener('wheel', e => {
-            if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+            if (planCarousel.querySelectorAll('.plan-card').length < 2) return;
             e.preventDefault();
-            planCarousel.scrollBy({ left: e.deltaY > 0 ? 276 : -276 });
+            const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+            if (Math.abs(delta) < 4 || Date.now() - lastFlip < 350) return;
+            lastFlip = Date.now();
+            flipDeck(delta > 0 ? 1 : -1);
         }, { passive: false });
+        let touchX = null;
+        planCarousel.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; }, { passive: true });
+        planCarousel.addEventListener('touchend', e => {
+            if (touchX === null) return;
+            const dx = e.changedTouches[0].clientX - touchX;
+            touchX = null;
+            if (Math.abs(dx) > 40) flipDeck(dx < 0 ? 1 : -1);
+        });
 
         // --- Study Stopwatch Logic ---
         function toggleStudyStopwatch() {
