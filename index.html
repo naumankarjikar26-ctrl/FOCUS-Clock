@@ -21,12 +21,14 @@
             background-color: var(--bg-color);
             color: var(--text-main);
             margin: 0;
-            height: 100vh;
+            min-height: 100vh;
+            box-sizing: border-box;
+            padding: 130px 0 180px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            overflow: hidden;
+            overflow-x: hidden;
             position: relative;
         }
 
@@ -140,18 +142,18 @@
         .loop-btn.active { color: #fff; background: var(--btn-dark); }
         
         /* Bottom Elements */
-        .bottom-left { position: absolute; bottom: 40px; left: 40px; display: flex; gap: 10px; z-index: 20; }
-        .bottom-right { position: absolute; bottom: 40px; right: 40px; display: flex; gap: 10px; z-index: 20; }
-        .mode-selector { position: absolute; bottom: 40px; background: var(--btn-light); border: none; padding: 10px 20px; border-radius: 20px; font-weight: 600; outline: none; cursor: pointer; z-index: 30; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+        .bottom-left { position: fixed; bottom: 40px; left: 40px; display: flex; gap: 10px; z-index: 20; }
+        .bottom-right { position: fixed; bottom: 40px; right: 40px; display: flex; gap: 10px; z-index: 20; }
+        .mode-selector { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); background: var(--btn-light); border: none; padding: 10px 20px; border-radius: 20px; font-weight: 600; outline: none; cursor: pointer; z-index: 30; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
 
-        #reorder-panel { display: none; flex-direction: column; gap: 8px; position: absolute; bottom: 105px; right: 40px; background: var(--card-bg); padding: 15px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); border: 1px solid #eaeaea; z-index: 20; width: 220px; }
+        #reorder-panel { display: none; flex-direction: column; gap: 8px; position: fixed; bottom: 105px; right: 40px; background: var(--card-bg); padding: 15px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); border: 1px solid #eaeaea; z-index: 20; width: 220px; }
         .reorder-title { font-weight: 800; font-size: 0.75rem; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 4px; }
         .reorder-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--btn-light); border-radius: 8px; font-weight: 600; font-size: 0.85rem; }
         .reorder-arrows button { background: none; border: none; cursor: pointer; font-size: 0.9rem; color: var(--text-main); padding: 2px 6px; }
         .reorder-arrows button:disabled { opacity: 0.25; cursor: default; }
         
         /* Ringing Overlay */
-        .alarm-ringing { position: absolute; top: 20px; background: var(--btn-dark); color: #fff; padding: 15px 25px; border-radius: 30px; font-weight: 700; letter-spacing: 1px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: slideDown 0.3s ease-out; z-index: 100; display: none; align-items: center; gap: 15px; }
+        .alarm-ringing { position: fixed; top: 20px; background: var(--btn-dark); color: #fff; padding: 15px 25px; border-radius: 30px; font-weight: 700; letter-spacing: 1px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: slideDown 0.3s ease-out; z-index: 100; display: none; align-items: center; gap: 15px; }
         /* Planner Mode */
         #planner-interface { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 720px; z-index: 10; margin-top: 10px; }
         .day-strip { display: flex; gap: 8px; margin-bottom: 18px; }
