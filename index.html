@@ -117,14 +117,16 @@
         
         /* Subtle GitHub-style Calendar */
         .calendar-wrapper { width: 100%; margin-top: 20px; display: flex; flex-direction: column; gap: 5px; }
-        .calendar-heatmap { display: grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; gap: 4px; width: 100%; overflow-x: auto; padding-bottom: 10px; }
-        .calendar-heatmap::-webkit-scrollbar { height: 4px; }
-        .calendar-heatmap::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
-        .day-cell { width: 10px; height: 10px; border-radius: 2px; background: #f0f0f0; transition: transform 0.1s; }
-        .day-cell:hover { transform: scale(1.2); }
+        .month-header { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .month-header .stats-header { width: auto; margin-bottom: 0; }
+        .month-select { padding: 6px 10px; border-radius: 8px; border: 1px solid #ddd; outline: none; font-size: 0.8rem; font-family: inherit; font-weight: 600; background: #fafafa; color: var(--text-main); cursor: pointer; }
+        .calendar-heatmap { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; width: 100%; margin-top: 10px; }
+        .day-cell { height: 28px; border-radius: 6px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 600; color: var(--text-muted); transition: transform 0.1s; }
+        .day-cell.empty { background: none; }
+        .day-cell:hover { transform: scale(1.1); }
         .day-cell.lvl-1 { background: #d0d0d0; }
-        .day-cell.lvl-2 { background: #999; }
-        .day-cell.lvl-3 { background: var(--btn-dark); }
+        .day-cell.lvl-2 { background: #999; color: #fff; }
+        .day-cell.lvl-3 { background: var(--btn-dark); color: #fff; }
 
         /* Music Player Panel */
         #music-panel { position: absolute; bottom: 105px; left: 40px; background: var(--card-bg); padding: 15px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); width: 300px; display: none; flex-direction: column; gap: 10px; z-index: 20; border: 1px solid #eaeaea; }
@@ -228,7 +230,6 @@
             
             <div class="study-nav" id="study-nav">
                 <button class="study-nav-btn active" id="tab-btn-presets" onclick="switchStudyTab('presets')">Presets</button>
-                <button class="study-nav-btn" id="tab-btn-stopwatch" onclick="switchStudyTab('stopwatch')">Stopwatch</button>
                 <button class="study-nav-btn" id="tab-btn-stats" onclick="switchStudyTab('stats')">Stats</button>
             </div>
 
@@ -249,23 +250,16 @@
                 </div>
             </div>
 
-            <!-- Study Stopwatch View -->
-            <div id="study-stopwatch-view" style="display: none; flex-direction: column; align-items: center; margin-top: 20px;">
-                <div class="time-display" style="margin-bottom: 30px;">
-                    <div class="time-part" id="ssw-hours">00</div><span class="colon">:</span><!--
-                    --><div class="time-part" id="ssw-minutes">00</div><span class="colon">:</span><!--
-                    --><div class="time-part" id="ssw-seconds">00</div>
-                </div>
-                <button class="btn-primary" id="ssw-toggle-btn" onclick="toggleStudyStopwatch()">Start</button>
-            </div>
-
             <!-- Statistics / Graph View -->
             <div id="study-stats-view">
                 <div class="stats-header">Past 7 Days</div>
                 <div class="graph-container" id="stats-graph"></div>
                 
                 <div class="calendar-wrapper">
-                    <div class="stats-header">Year in Review</div>
+                    <div class="month-header">
+                        <div class="stats-header">Monthly Activity</div>
+                        <select class="month-select" id="month-select" onchange="renderCalendar()"></select>
+                    </div>
                     <div class="calendar-heatmap" id="calendar-heatmap"></div>
                 </div>
             </div>
@@ -316,8 +310,6 @@
         let pendingBreakMins = 0;
         let studyPaused = false;
 
-        let isStudyStopwatchRunning = false;
-        let studyStopwatchSecs = 0;
         
         // Load stored data
         let customPresets = JSON.parse(localStorage.getItem('focus_custom_presets')) || [];
@@ -340,7 +332,6 @@
         const studyInterface = document.getElementById('study-interface');
         
         const studyMainView = document.getElementById('study-main-view');
-        const studyStopwatchView = document.getElementById('study-stopwatch-view');
         const studyStatsView = document.getElementById('study-stats-view');
         const studyNav = document.getElementById('study-nav');
         
@@ -500,11 +491,9 @@
         // --- Study Stats & Calendar Logic ---
         function switchStudyTab(tab) {
             document.getElementById('tab-btn-presets').className = tab === 'presets' ? 'study-nav-btn active' : 'study-nav-btn';
-            document.getElementById('tab-btn-stopwatch').className = tab === 'stopwatch' ? 'study-nav-btn active' : 'study-nav-btn';
             document.getElementById('tab-btn-stats').className = tab === 'stats' ? 'study-nav-btn active' : 'study-nav-btn';
             
             studyMainView.style.display = tab === 'presets' ? 'flex' : 'none';
-            studyStopwatchView.style.display = tab === 'stopwatch' ? 'flex' : 'none';
             studyStatsView.style.display = tab === 'stats' ? 'flex' : 'none';
             
             if (tab === 'stats') {
@@ -554,25 +543,42 @@
             });
         }
 
-        function renderCalendar() {
-            calendarHeatmap.innerHTML = '';
+        function fillMonthSelect() {
+            const monthSelect = document.getElementById('month-select');
+            if (monthSelect.options.length) return;
             const today = new Date();
-            const startDate = new Date();
-            startDate.setDate(today.getDate() - 364); 
+            for (let i = 0; i < 12; i++) {
+                const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+                const opt = document.createElement('option');
+                opt.value = `${d.getFullYear()}-${d.getMonth()}`;
+                opt.innerText = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                monthSelect.appendChild(opt);
+            }
+        }
+
+        function renderCalendar() {
+            fillMonthSelect();
+            calendarHeatmap.innerHTML = '';
+            const [year, month] = document.getElementById('month-select').value.split('-').map(Number);
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
 
             let maxSecs = 1;
             for(let key in studyStats) { if(studyStats[key] > maxSecs) maxSecs = studyStats[key]; }
 
-            for (let i = 0; i <= 364; i++) {
-                let d = new Date(startDate);
-                d.setDate(startDate.getDate() + i);
-                
-                const offset = d.getTimezoneOffset() * 60000;
-                const dateStr = (new Date(d - offset)).toISOString().split('T')[0]; 
+            // Blank cells so day 1 lands on the right weekday
+            for (let i = 0; i < new Date(year, month, 1).getDay(); i++) {
+                const blank = document.createElement('div');
+                blank.className = 'day-cell empty';
+                calendarHeatmap.appendChild(blank);
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 const secs = studyStats[dateStr] || 0;
                 
                 const cell = document.createElement('div');
                 cell.className = 'day-cell';
+                cell.innerText = day;
                 cell.title = `${dateStr}: ${formatStatDisplay(secs)}`;
                 
                 if(secs > 0) {
@@ -584,9 +590,6 @@
                 
                 calendarHeatmap.appendChild(cell);
             }
-            
-            // Auto scroll to the most recent day (right side)
-            setTimeout(() => { calendarHeatmap.scrollLeft = calendarHeatmap.scrollWidth; }, 10);
         }
 
         // --- Study Presets Logic ---
@@ -642,15 +645,6 @@
             document.getElementById('st-hours').innerText = String(h).padStart(2, '0');
             document.getElementById('st-minutes').innerText = String(m).padStart(2, '0');
             document.getElementById('st-seconds').innerText = String(s).padStart(2, '0');
-        }
-
-        // --- Study Stopwatch Logic ---
-        function toggleStudyStopwatch() {
-            isStudyStopwatchRunning = !isStudyStopwatchRunning;
-            document.getElementById('ssw-toggle-btn').innerText = isStudyStopwatchRunning ? "Stop" : "Start";
-            if (mode === 'study') {
-                focusTitle.innerText = isStudyStopwatchRunning ? "STUDYING" : "STUDY STOPWATCH";
-            }
         }
 
         // --- Alarms Logic ---
@@ -773,18 +767,6 @@
                 updateStudyDisplay();
             }
 
-            // Study Stopwatch Background Run
-            if (isStudyStopwatchRunning) {
-                logStudyTime();
-                studyStopwatchSecs++;
-                
-                let h = Math.floor(studyStopwatchSecs / 3600);
-                let m = Math.floor((studyStopwatchSecs % 3600) / 60);
-                let s = studyStopwatchSecs % 60;
-                document.getElementById('ssw-hours').innerText = String(h).padStart(2, '0');
-                document.getElementById('ssw-minutes').innerText = String(m).padStart(2, '0');
-                document.getElementById('ssw-seconds').innerText = String(s).padStart(2, '0');
-            }
         }
 
         function toggle() {
@@ -827,7 +809,6 @@
                 } else {
                     studyNav.style.display = 'none';
                     studyMainView.style.display = 'flex';
-                    studyStopwatchView.style.display = 'none';
                     studyStatsView.style.display = 'none';
                 }
                 studyTimerDisplay.style.display = (studyState !== 'idle') ? 'flex' : 'none';
@@ -850,7 +831,7 @@
             } else if (isStudy) {
                 if (!['ALARMS', 'CLOCK', 'STUDY PRESETS', 'STUDY STOPWATCH', 'STUDYING', 'BREAK TIME'].includes(focusTitle.innerText)) focusTitle.dataset.savedText = focusTitle.innerText;
                 if (studyState === 'idle') {
-                    focusTitle.innerText = isStudyStopwatchRunning ? "STUDYING" : "STUDY PRESETS";
+                    focusTitle.innerText = "STUDY PRESETS";
                 }
                 else if (studyState === 'study' || studyState === 'study_ringing') focusTitle.innerText = "STUDYING";
                 else focusTitle.innerText = "BREAK TIME";
