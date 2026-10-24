@@ -13,7 +13,32 @@
             --card-bg: #fff;
             --btn-dark: #222;
             --btn-light: #f0f0f0;
+            --btn-text: #fff;
+            --border: var(--border);
+            --input-bg: #fafafa;
+            --input-border: #ddd;
+            --hover: #e5e5e5;
+            --cell-lvl-1: #d0d0d0;
+            color-scheme: light;
         }
+
+        body.dark {
+            --bg-color: #121212;
+            --text-main: #eee;
+            --text-muted: #888;
+            --card-bg: #1c1c1c;
+            --btn-dark: #eee;
+            --btn-light: #2a2a2a;
+            --btn-text: #111;
+            --border: #2e2e2e;
+            --input-bg: #1a1a1a;
+            --input-border: #333;
+            --hover: #383838;
+            --cell-lvl-1: #4a4a4a;
+            color-scheme: dark;
+        }
+
+        input, select, button { color: var(--text-main); }
 
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 
@@ -64,25 +89,25 @@
 
         /* Controls */
         .controls { display: flex; gap: 15px; align-items: center; height: 54px; }
-        .btn-primary { background: var(--btn-dark); color: #fff; border: none; border-radius: 30px; padding: 18px 40px; font-size: 1rem; font-weight: 600; cursor: pointer; box-shadow: 0 10px 20px rgba(0,0,0,0.1); transition: transform 0.1s; }
+        .btn-primary { background: var(--btn-dark); color: var(--btn-text); border: none; border-radius: 30px; padding: 18px 40px; font-size: 1rem; font-weight: 600; cursor: pointer; box-shadow: 0 10px 20px rgba(0,0,0,0.1); transition: transform 0.1s; }
         .btn-primary:active { transform: scale(0.96); }
         .btn-icon { background: var(--btn-light); color: var(--text-main); border: none; border-radius: 50%; width: 54px; height: 54px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; cursor: pointer; transition: background 0.2s; }
-        .btn-icon:hover { background: #e5e5e5; }
+        .btn-icon:hover { background: var(--hover); }
 
         /* Alarm Interface */
         #alarm-interface { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 420px; z-index: 10; margin-top: 10px; }
         .alarm-list { width: 100%; display: flex; flex-direction: column; gap: 10px; max-height: 40vh; overflow-y: auto; margin-bottom: 15px; padding: 5px; }
-        .alarm-item { display: flex; justify-content: space-between; align-items: center; background: var(--bg-color); padding: 12px 18px; border-radius: 12px; border: 1px solid #eaeaea; box-shadow: 0 4px 10px rgba(0,0,0,0.03); font-weight: 600; transition: background 0.2s; }
+        .alarm-item { display: flex; justify-content: space-between; align-items: center; background: var(--bg-color); padding: 12px 18px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 10px rgba(0,0,0,0.03); font-weight: 600; transition: background 0.2s; }
         .alarm-item.inactive { opacity: 0.6; }
         .alarm-info { display: flex; flex-direction: column; text-align: left; }
         .alarm-label { font-size: 0.8rem; color: var(--text-muted); font-weight: normal; margin-top: 2px; }
         .alarm-controls { display: flex; gap: 10px; align-items: center; }
         .toggle-btn { border: none; padding: 6px 12px; border-radius: 15px; font-weight: 700; font-size: 0.75rem; cursor: pointer; transition: all 0.2s; }
-        .toggle-btn.on { background: var(--btn-dark); color: #fff; }
+        .toggle-btn.on { background: var(--btn-dark); color: var(--btn-text); }
         .toggle-btn.off { background: var(--btn-light); color: var(--text-muted); }
         .alarm-btn.delete { background: none; border: none; cursor: pointer; font-size: 1.3rem; color: #d9534f; padding: 0; line-height: 1; }
-        .add-alarm-form { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; max-width: 320px; background: var(--card-bg); padding: 15px; border-radius: 16px; border: 1px solid #eaeaea; box-shadow: 0 8px 30px rgba(0,0,0,0.04); justify-content: center; }
-        .add-alarm-form input { padding: 10px 12px; border-radius: 8px; border: 1px solid #ddd; outline: none; font-size: 0.9rem; font-family: inherit; background: #fafafa; }
+        .add-alarm-form { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; max-width: 320px; background: var(--card-bg); padding: 15px; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 8px 30px rgba(0,0,0,0.04); justify-content: center; }
+        .add-alarm-form input { padding: 10px 12px; border-radius: 8px; border: 1px solid var(--input-border); outline: none; font-size: 0.9rem; font-family: inherit; background: var(--input-bg); }
         .add-alarm-form input[type="time"] { width: 110px; }
         .add-alarm-form input[type="text"] { flex: 1; min-width: 120px; }
         .alarm-action-btns { display: flex; gap: 8px; width: 100%; }
@@ -95,23 +120,23 @@
         
         .study-nav { display: flex; gap: 10px; margin-bottom: 20px; width: 100%; max-width: 350px; justify-content: center; }
         .study-nav-btn { flex: 1; padding: 10px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; background: var(--btn-light); color: var(--text-muted); transition: all 0.2s; }
-        .study-nav-btn.active { background: var(--btn-dark); color: #fff; }
+        .study-nav-btn.active { background: var(--btn-dark); color: var(--btn-text); }
 
         .preset-btns { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; width: 100%; max-width: 300px; }
-        .preset-btn { background: var(--card-bg); color: var(--text-main); border: 2px solid #eaeaea; padding: 15px 20px; border-radius: 12px; cursor: pointer; font-weight: 700; font-size: 0.9rem; box-shadow: 0 4px 10px rgba(0,0,0,0.02); transition: all 0.2s; display: flex; justify-content: space-between; align-items: center;}
+        .preset-btn { background: var(--card-bg); color: var(--text-main); border: 2px solid var(--border); padding: 15px 20px; border-radius: 12px; cursor: pointer; font-weight: 700; font-size: 0.9rem; box-shadow: 0 4px 10px rgba(0,0,0,0.02); transition: all 0.2s; display: flex; justify-content: space-between; align-items: center;}
         .preset-btn:hover { border-color: var(--btn-dark); transform: translateY(-2px); }
         .preset-delete { background: none; border: none; color: #d9534f; font-size: 1.2rem; cursor: pointer; padding: 0 5px; }
 
         .custom-preset-form { display: flex; gap: 8px; width: 100%; margin-top: 5px; }
-        .custom-preset-form input { flex: 1; min-width: 0; padding: 12px; border-radius: 8px; border: 1px solid #ddd; outline: none; font-size: 0.9rem; background: #fafafa; }
-        .custom-preset-form button { background: var(--btn-dark); color: #fff; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: 700; }
+        .custom-preset-form input { flex: 1; min-width: 0; padding: 12px; border-radius: 8px; border: 1px solid var(--input-border); outline: none; font-size: 0.9rem; background: var(--input-bg); }
+        .custom-preset-form button { background: var(--btn-dark); color: var(--btn-text); border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: 700; }
 
         /* Stats Graph & Calendar */
         #study-stats-view { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 360px; }
         
         .stats-header { font-size: 0.9rem; font-weight: 800; margin-bottom: 5px; color: var(--text-main); text-transform: uppercase; letter-spacing: 1px; width: 100%; text-align: left; }
         
-        .graph-container { display: flex; align-items: flex-end; justify-content: space-around; height: 130px; width: 100%; margin-top: 15px; padding-bottom: 20px; border-bottom: 1px solid #eaeaea; position: relative; }
+        .graph-container { display: flex; align-items: flex-end; justify-content: space-around; height: 130px; width: 100%; margin-top: 15px; padding-bottom: 20px; border-bottom: 1px solid var(--border); position: relative; }
         .bar-group { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; width: 40px; position: relative; }
         .bar { width: 100%; background: var(--btn-dark); border-radius: 4px 4px 0 0; min-height: 2px; transition: height 0.5s ease-out; }
         .bar-label { font-size: 0.65rem; color: var(--text-muted); position: absolute; bottom: -18px; font-weight: 600; }
@@ -121,49 +146,50 @@
         .calendar-wrapper { width: 100%; margin-top: 20px; display: flex; flex-direction: column; gap: 5px; }
         .month-header { display: flex; justify-content: space-between; align-items: center; width: 100%; }
         .month-header .stats-header { width: auto; margin-bottom: 0; }
-        .month-select { padding: 6px 10px; border-radius: 8px; border: 1px solid #ddd; outline: none; font-size: 0.8rem; font-family: inherit; font-weight: 600; background: #fafafa; color: var(--text-main); cursor: pointer; }
+        .month-select { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--input-border); outline: none; font-size: 0.8rem; font-family: inherit; font-weight: 600; background: var(--input-bg); color: var(--text-main); cursor: pointer; }
         .calendar-heatmap { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; width: 100%; margin-top: 10px; }
         .day-cell { height: 28px; border-radius: 6px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 600; color: var(--text-muted); transition: transform 0.1s; }
         .day-cell.empty { background: none; }
         .day-cell:hover { transform: scale(1.1); }
-        .day-cell.lvl-1 { background: #d0d0d0; }
+        .day-cell.lvl-1 { background: var(--cell-lvl-1); }
         .day-cell.lvl-2 { background: #999; color: #fff; }
-        .day-cell.lvl-3 { background: var(--btn-dark); color: #fff; }
+        .day-cell.lvl-3 { background: var(--btn-dark); color: var(--btn-text); }
 
         /* Music Player Panel */
-        #music-panel { position: absolute; bottom: 105px; left: 40px; background: var(--card-bg); padding: 15px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); width: 300px; display: none; flex-direction: column; gap: 10px; z-index: 20; border: 1px solid #eaeaea; }
+        #music-panel { position: absolute; bottom: 105px; left: 40px; background: var(--card-bg); padding: 15px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); width: 300px; display: none; flex-direction: column; gap: 10px; z-index: 20; border: 1px solid var(--border); }
         .music-header { font-weight: 700; font-size: 1rem; margin: 0; display: flex; justify-content: space-between; align-items: center; }
         .close-music { background: none; border: none; cursor: pointer; font-size: 1.2rem; color: var(--text-muted); }
         .music-input-group { display: flex; gap: 5px; }
-        .music-input-group input { flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid #ddd; outline: none; font-size: 0.8rem; font-family: inherit; background: #fafafa; }
-        .music-input-group button { background: var(--btn-dark); color: #fff; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.8rem; }
+        .music-input-group input { flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--input-border); outline: none; font-size: 0.8rem; font-family: inherit; background: var(--input-bg); }
+        .music-input-group button { background: var(--btn-dark); color: var(--btn-text); border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.8rem; }
         .header-btns { display: flex; gap: 8px; align-items: center; }
         .loop-btn { background: none; border: none; cursor: pointer; font-size: 1rem; color: var(--text-muted); border-radius: 8px; padding: 2px 6px; }
-        .loop-btn.active { color: #fff; background: var(--btn-dark); }
+        .loop-btn.active { color: var(--btn-text); background: var(--btn-dark); }
         
         /* Bottom Elements */
         .bottom-left { position: fixed; bottom: 40px; left: 40px; display: flex; gap: 10px; z-index: 20; }
         .bottom-right { position: fixed; bottom: 40px; right: 40px; display: flex; gap: 10px; z-index: 20; }
         .mode-selector { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); background: var(--btn-light); border: none; padding: 10px 20px; border-radius: 20px; font-weight: 600; outline: none; cursor: pointer; z-index: 30; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
 
-        #reorder-panel { display: none; flex-direction: column; gap: 8px; position: fixed; bottom: 105px; right: 40px; background: var(--card-bg); padding: 15px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); border: 1px solid #eaeaea; z-index: 20; width: 220px; }
+        #settings-panel { display: none; flex-direction: column; gap: 8px; position: fixed; bottom: 105px; right: 40px; background: var(--card-bg); padding: 15px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); border: 1px solid var(--border); z-index: 20; width: 220px; }
         .reorder-title { font-weight: 800; font-size: 0.75rem; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 4px; }
         .reorder-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--btn-light); border-radius: 8px; font-weight: 600; font-size: 0.85rem; }
         .reorder-arrows button { background: none; border: none; cursor: pointer; font-size: 0.9rem; color: var(--text-main); padding: 2px 6px; }
         .reorder-arrows button:disabled { opacity: 0.25; cursor: default; }
+        .reorder-title + .reorder-title, #reorder-list + .reorder-title { margin-top: 8px; }
         
         /* Ringing Overlay */
-        .alarm-ringing { position: fixed; top: 20px; background: var(--btn-dark); color: #fff; padding: 15px 25px; border-radius: 30px; font-weight: 700; letter-spacing: 1px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: slideDown 0.3s ease-out; z-index: 100; display: none; align-items: center; gap: 15px; }
+        .alarm-ringing { position: fixed; top: 20px; background: var(--btn-dark); color: var(--btn-text); padding: 15px 25px; border-radius: 30px; font-weight: 700; letter-spacing: 1px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: slideDown 0.3s ease-out; z-index: 100; display: none; align-items: center; gap: 15px; }
         /* Planner Mode */
         #planner-interface { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 720px; z-index: 10; margin-top: 10px; }
         .day-strip { display: flex; gap: 8px; margin-bottom: 18px; }
         .day-btn { width: 52px; padding: 8px 0; border-radius: 10px; border: none; background: var(--btn-light); color: var(--text-muted); font-weight: 700; font-size: 0.8rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; transition: all 0.2s; }
         .day-btn small { font-size: 0.65rem; font-weight: 600; }
         .day-btn.today { color: var(--text-main); }
-        .day-btn.active { background: var(--btn-dark); color: #fff; }
+        .day-btn.active { background: var(--btn-dark); color: var(--btn-text); }
         .plan-carousel { display: flex; gap: 16px; width: 100%; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; padding: 6px 40px 14px; scrollbar-width: none; mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); -webkit-mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
         .plan-carousel::-webkit-scrollbar { display: none; }
-        .plan-card { flex: 0 0 260px; scroll-snap-align: center; background: var(--card-bg); border: 2px solid #eaeaea; border-radius: 18px; padding: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); display: flex; flex-direction: column; gap: 10px; position: relative; }
+        .plan-card { flex: 0 0 260px; scroll-snap-align: center; background: var(--card-bg); border: 2px solid var(--border); border-radius: 18px; padding: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); display: flex; flex-direction: column; gap: 10px; position: relative; }
         .plan-card.running { border-color: var(--btn-dark); }
         .plan-subject { font-size: 1.3rem; font-weight: 800; padding-right: 24px; overflow-wrap: anywhere; }
         .plan-item { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; min-height: 1em; overflow-wrap: anywhere; }
@@ -174,14 +200,14 @@
         .plan-delete { position: absolute; top: 12px; right: 12px; background: none; border: none; color: #d9534f; font-size: 1.2rem; cursor: pointer; padding: 0 4px; }
         .plan-empty { color: var(--text-muted); font-size: 0.85rem; font-weight: 600; padding: 40px 0; text-align: center; width: 100%; }
         .plan-form { display: flex; gap: 8px; width: 100%; max-width: 560px; margin-top: 10px; }
-        .plan-form input { flex: 1; min-width: 0; padding: 12px; border-radius: 8px; border: 1px solid #ddd; outline: none; font-size: 0.9rem; font-family: inherit; background: #fafafa; }
+        .plan-form input { flex: 1; min-width: 0; padding: 12px; border-radius: 8px; border: 1px solid var(--input-border); outline: none; font-size: 0.9rem; font-family: inherit; background: var(--input-bg); }
         .plan-form input#plan-hours { flex: 0 0 80px; }
-        .plan-form button { background: var(--btn-dark); color: #fff; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 700; }
+        .plan-form button { background: var(--btn-dark); color: var(--btn-text); border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 700; }
         .plan-week { font-size: 0.75rem; color: var(--text-muted); font-weight: 700; margin-top: 12px; letter-spacing: 0.5px; }
         .subject-stats { width: 100%; margin-top: 20px; display: flex; flex-direction: column; gap: 6px; }
         .subject-row { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; padding: 8px 12px; background: var(--btn-light); border-radius: 8px; }
 
-        .stop-alarm-btn { background: #fff; color: var(--btn-dark); border: none; padding: 8px 16px; border-radius: 20px; font-weight: 800; cursor: pointer; font-size: 0.85rem; transition: transform 0.1s; }
+        .stop-alarm-btn { background: var(--btn-text); color: var(--btn-dark); border: none; padding: 8px 16px; border-radius: 20px; font-weight: 800; cursor: pointer; font-size: 0.85rem; transition: transform 0.1s; }
         .stop-alarm-btn:active { transform: scale(0.95); }
         @keyframes slideDown { from { top: -50px; opacity: 0; } to { top: 20px; opacity: 1; } }
 
@@ -340,14 +366,18 @@
 
     <select class="mode-selector" id="mode-select" onchange="changeMode()"></select>
 
-    <div id="reorder-panel">
+    <div id="settings-panel">
+        <div class="reorder-title">APPEARANCE</div>
+        <div class="reorder-item">
+            <span>Dark mode</span>
+            <button class="toggle-btn off" id="dark-toggle" onclick="toggleDarkMode()">OFF</button>
+        </div>
         <div class="reorder-title">REORDER MODES</div>
         <div id="reorder-list"></div>
     </div>
 
     <div class="bottom-right">
-        <button class="btn-icon" onclick="toggleReorderPanel()" title="Reorder modes">⇅</button>
-        <button class="btn-icon">⚙️</button>
+        <button class="btn-icon" onclick="toggleSettingsPanel()" title="Settings">⚙️</button>
     </div>
 
     <script>
@@ -419,12 +449,27 @@
             select.value = modeOrder.includes(current) ? current : modeOrder[0];
         }
 
-        function toggleReorderPanel() {
-            const panel = document.getElementById('reorder-panel');
+        function toggleSettingsPanel() {
+            const panel = document.getElementById('settings-panel');
             if (panel.style.display === 'flex') { panel.style.display = 'none'; return; }
             renderReorderList();
             panel.style.display = 'flex';
         }
+
+        function applyDarkMode(on) {
+            document.body.classList.toggle('dark', on);
+            const toggle = document.getElementById('dark-toggle');
+            toggle.className = on ? 'toggle-btn on' : 'toggle-btn off';
+            toggle.innerText = on ? 'ON' : 'OFF';
+        }
+
+        function toggleDarkMode() {
+            const on = !document.body.classList.contains('dark');
+            localStorage.setItem('focus_dark_mode', on ? '1' : '0');
+            applyDarkMode(on);
+        }
+
+        applyDarkMode(localStorage.getItem('focus_dark_mode') === '1');
 
         function renderReorderList() {
             const list = document.getElementById('reorder-list');
