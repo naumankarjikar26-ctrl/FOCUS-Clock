@@ -1390,9 +1390,16 @@
         }
     </script>
 
-    <!-- Cloud sync (Firebase). Fill in FIREBASE_CONFIG to turn it on; see SYNC_SETUP.md -->
+    <!-- Cloud sync (Firebase); see SYNC_SETUP.md -->
     <script type="module">
-        const FIREBASE_CONFIG = null; // paste your firebaseConfig object here, e.g. { apiKey: "...", authDomain: "...", projectId: "...", ... }
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyAf8T4DJRCUwPL8i6jR_pe2Um11uhXXL3g",
+            authDomain: "focus-clock-88211.firebaseapp.com",
+            projectId: "focus-clock-88211",
+            storageBucket: "focus-clock-88211.firebasestorage.app",
+            messagingSenderId: "139706684700",
+            appId: "1:139706684700:web:733ab445a54d9d6c3d16d9"
+        };
 
         const box = document.getElementById('sync-box');
         const LOCAL_ONLY = ['focus_notify']; // per-device settings that should not sync
