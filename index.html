@@ -3,6 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#111111">
+    <link rel="apple-touch-icon" href="icons/icon-180.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="focus">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <title>Focus Tracker</title>
     <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
     <style>
@@ -204,6 +211,19 @@
         .plan-form input#plan-hours { flex: 0 0 80px; }
         .plan-form button { background: var(--btn-dark); color: var(--btn-text); border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 700; }
         .plan-week { font-size: 0.75rem; color: var(--text-muted); font-weight: 700; margin-top: 12px; letter-spacing: 0.5px; }
+        .plan-note-last { font-size: 0.75rem; color: var(--text-muted); font-style: italic; overflow-wrap: anywhere; }
+        .plan-note { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--input-border); outline: none; font-size: 0.8rem; font-family: inherit; background: var(--input-bg); }
+        .plan-actions { display: flex; gap: 6px; }
+        .plan-pomo { width: 40px; height: 40px; font-size: 0.95rem; }
+        .pomo-choices { display: flex; flex-wrap: wrap; gap: 6px; }
+        .pomo-choices button { border: none; background: var(--btn-light); padding: 6px 10px; border-radius: 8px; font-weight: 700; font-size: 0.75rem; cursor: pointer; }
+        .pomo-choices button:hover { background: var(--btn-dark); color: var(--btn-text); }
+        .streak-box { width: 100%; display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; padding: 16px; border-radius: 14px; background: var(--btn-light); }
+        .streak-top { display: flex; justify-content: space-between; align-items: baseline; font-weight: 800; }
+        .streak-count { font-size: 1.1rem; }
+        .streak-today { font-size: 0.8rem; color: var(--text-muted); font-weight: 700; }
+        .streak-box .plan-progress { background: var(--card-bg); }
+        .goal-input { width: 70px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--input-border); outline: none; font-size: 0.8rem; font-family: inherit; font-weight: 700; background: var(--input-bg); text-align: center; }
         .subject-stats { width: 100%; margin-top: 20px; display: flex; flex-direction: column; gap: 6px; }
         .subject-row { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; padding: 8px 12px; background: var(--btn-light); border-radius: 8px; }
 
@@ -324,6 +344,13 @@
 
             <!-- Statistics / Graph View -->
             <div id="study-stats-view">
+                <div class="streak-box">
+                    <div class="streak-top">
+                        <span class="streak-count" id="streak-count"></span>
+                        <span class="streak-today" id="streak-today"></span>
+                    </div>
+                    <div class="plan-progress"><div id="streak-bar"></div></div>
+                </div>
                 <div class="stats-header">Past 7 Days</div>
                 <div class="graph-container" id="stats-graph"></div>
                 
@@ -372,6 +399,10 @@
             <span>Dark mode</span>
             <button class="toggle-btn off" id="dark-toggle" onclick="toggleDarkMode()">OFF</button>
         </div>
+        <div class="reorder-item">
+            <span>Daily goal (hours)</span>
+            <input type="number" class="goal-input" id="daily-goal" min="0.25" step="0.25" onchange="setDailyGoal(this.value)">
+        </div>
         <div class="reorder-title">REORDER MODES</div>
         <div id="reorder-list"></div>
     </div>
@@ -401,6 +432,9 @@
         let subjectStats = JSON.parse(localStorage.getItem('focus_subject_stats')) || {};
         let selectedPlanDay = null;
         let activePlan = null; // { day, index }
+        let pomodoroPlan = null; // planner card a study preset is counting toward
+        let pomoChooser = null; // index of card showing preset choices
+        let dailyGoal = parseFloat(localStorage.getItem('focus_daily_goal')) || 2;
 
         let alarms = [];
         let audioCtx;
@@ -453,6 +487,7 @@
             const panel = document.getElementById('settings-panel');
             if (panel.style.display === 'flex') { panel.style.display = 'none'; return; }
             renderReorderList();
+            document.getElementById('daily-goal').value = dailyGoal;
             panel.style.display = 'flex';
         }
 
@@ -607,6 +642,7 @@
                 renderGraph();
                 renderCalendar();
                 renderSubjectStats();
+                renderStreak();
             }
         }
 
@@ -737,6 +773,7 @@
 
         function cancelStudy() {
             studyState = 'idle';
+            pomodoroPlan = null;
             studyPaused = false;
             studyNav.style.display = 'flex';
             studyPresets.style.display = 'flex';
@@ -792,17 +829,24 @@
 
             const list = plans[selectedPlanDay] || [];
             planCarousel.innerHTML = list.length ? list.map((p, i) => {
-                const running = activePlan && activePlan.day === selectedPlanDay && activePlan.index === i;
+                const running = [activePlan, studyState !== 'idle' && pomodoroPlan].some(a => a && a.day === selectedPlanDay && a.index === i);
                 const pct = Math.min(100, (p.secs / (p.goal * 3600)) * 100);
+                const lastNote = (p.notes || []).slice(-1)[0];
                 return `<div class="plan-card ${running ? 'running' : ''}">
                     <button class="plan-delete" onclick="deletePlan(${i})">×</button>
                     <div class="plan-subject">${escapeHtml(p.subject)}</div>
                     <div class="plan-item">${escapeHtml(p.item)}</div>
+                    ${lastNote ? `<div class="plan-note-last">📝 ${escapeHtml(lastNote.text)}${p.notes.length > 1 ? ` (+${p.notes.length - 1} more)` : ''}</div>` : ''}
                     <div class="plan-progress"><div style="width: ${pct}%"></div></div>
                     <div class="plan-meta">
                         <span id="plan-time-${i}">${formatHours(p.secs)} / ${p.goal}h</span>
-                        <button class="btn-icon plan-play" onclick="togglePlan(${i})">${running ? '⏸' : '▶'}</button>
+                        <span class="plan-actions">
+                            <button class="btn-icon plan-pomo" onclick="togglePomoChooser(${i})" title="Start a study preset">🍅</button>
+                            <button class="btn-icon plan-play" onclick="togglePlan(${i})" title="Free study">${running && !(studyState !== 'idle' && studyPaused && pomodoroPlan && pomodoroPlan.index === i) ? '⏸' : '▶'}</button>
+                        </span>
                     </div>
+                    ${pomoChooser === i ? `<div class="pomo-choices">${pomoOptions().map(o => `<button onclick="startPlanPomodoro(${i}, ${o.study}, ${o.break})">${o.study}/${o.break}</button>`).join('')}</div>` : ''}
+                    <input class="plan-note" placeholder="Session note… (Enter to save)" maxlength="80" onkeydown="if (event.key === 'Enter') addPlanNote(${i}, this)">
                 </div>`;
             }).join('') : '<div class="plan-empty">No subjects planned for this day yet.</div>';
 
@@ -828,17 +872,98 @@
                 if (activePlan.index === index) activePlan = null;
                 else if (activePlan.index > index) activePlan.index--;
             }
+            if (pomodoroPlan && pomodoroPlan.day === selectedPlanDay) {
+                if (pomodoroPlan.index === index) pomodoroPlan = null;
+                else if (pomodoroPlan.index > index) pomodoroPlan.index--;
+            }
+            pomoChooser = null;
             plans[selectedPlanDay].splice(index, 1);
             savePlans();
             renderPlanner();
         }
 
         function togglePlan(index) {
+            if (studyState !== 'idle' && pomodoroPlan && pomodoroPlan.day === selectedPlanDay && pomodoroPlan.index === index) {
+                toggleStudyPause();
+                renderPlanner();
+                return;
+            }
             const same = activePlan && activePlan.day === selectedPlanDay && activePlan.index === index;
             activePlan = same ? null : { day: selectedPlanDay, index };
+            if (activePlan && studyState !== 'idle') cancelStudy(); // don't count the same time twice
             savePlans();
             localStorage.setItem('focus_subject_stats', JSON.stringify(subjectStats));
             renderPlanner();
+        }
+
+        function pomoOptions() {
+            return [{ study: 25, break: 5 }, { study: 50, break: 10 }, ...customPresets];
+        }
+
+        function togglePomoChooser(index) {
+            pomoChooser = pomoChooser === index ? null : index;
+            renderPlanner();
+        }
+
+        function startPlanPomodoro(index, studyM, breakM) {
+            activePlan = null;
+            pomoChooser = null;
+            pomodoroPlan = { day: selectedPlanDay, index };
+            document.getElementById('mode-select').value = 'study';
+            changeMode();
+            switchStudyTab('presets');
+            startStudy(studyM, breakM);
+        }
+
+        function addPlanNote(index, input) {
+            const text = input.value.trim();
+            if (!text) return;
+            const p = plans[selectedPlanDay][index];
+            (p.notes = p.notes || []).push({ text, at: Date.now() });
+            savePlans();
+            renderPlanner();
+        }
+
+        // Adds one second of study to a planner card and its subject total
+        function creditPlan(ref, now) {
+            const p = ref && (plans[ref.day] || [])[ref.index];
+            if (!p) return false;
+            p.secs++;
+            subjectStats[p.subject] = (subjectStats[p.subject] || 0) + 1;
+            if (now.getSeconds() % 5 === 0) {
+                savePlans();
+                localStorage.setItem('focus_subject_stats', JSON.stringify(subjectStats));
+            }
+            if (mode === 'planner' && selectedPlanDay === ref.day) {
+                const label = document.getElementById(`plan-time-${ref.index}`);
+                if (label) {
+                    label.innerText = `${formatHours(p.secs)} / ${p.goal}h`;
+                    label.closest('.plan-card').querySelector('.plan-progress div').style.width = `${Math.min(100, (p.secs / (p.goal * 3600)) * 100)}%`;
+                }
+            }
+            return true;
+        }
+
+        // --- Daily goal & streak ---
+        function setDailyGoal(val) {
+            const v = parseFloat(val);
+            if (!(v > 0)) { document.getElementById('daily-goal').value = dailyGoal; return; }
+            dailyGoal = v;
+            localStorage.setItem('focus_daily_goal', String(v));
+            renderStreak();
+        }
+
+        function renderStreak() {
+            const goalSecs = dailyGoal * 3600;
+            const today = new Date();
+            const todaySecs = studyStats[dateKey(today)] || 0;
+            let streak = 0;
+            // Today only breaks the streak once it's over, so start from yesterday if it isn't met yet
+            const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (todaySecs >= goalSecs ? 0 : 1));
+            while ((studyStats[dateKey(d)] || 0) >= goalSecs) { streak++; d.setDate(d.getDate() - 1); }
+            document.getElementById('streak-count').innerText = `🔥 ${streak}-day streak`;
+            document.getElementById('streak-today').innerText = `TODAY ${formatHours(todaySecs)} / ${dailyGoal}h`;
+            document.getElementById('streak-bar').style.width = `${Math.min(100, (todaySecs / goalSecs) * 100)}%`;
         }
 
         function renderSubjectStats() {
@@ -960,7 +1085,7 @@
 
             // Study Presets Background Run
             if ((studyState === 'study' || studyState === 'break') && !studyPaused) {
-                if (studyState === 'study') logStudyTime();
+                if (studyState === 'study') { logStudyTime(); creditPlan(pomodoroPlan, now); }
                 
                 currentStudySecs--;
                 if (currentStudySecs <= 0) {
@@ -978,22 +1103,8 @@
 
             // Planner Background Run
             if (activePlan) {
-                const p = (plans[activePlan.day] || [])[activePlan.index];
-                if (p) {
-                    logStudyTime();
-                    p.secs++;
-                    subjectStats[p.subject] = (subjectStats[p.subject] || 0) + 1;
-                    if (now.getSeconds() % 5 === 0) {
-                        savePlans();
-                        localStorage.setItem('focus_subject_stats', JSON.stringify(subjectStats));
-                    }
-                    if (mode === 'planner' && selectedPlanDay === activePlan.day) {
-                        const label = document.getElementById(`plan-time-${activePlan.index}`);
-                        if (label) label.innerText = `${formatHours(p.secs)} / ${p.goal}h`;
-                        const bar = label && label.closest('.plan-card').querySelector('.plan-progress div');
-                        if (bar) bar.style.width = `${Math.min(100, (p.secs / (p.goal * 3600)) * 100)}%`;
-                    }
-                } else activePlan = null;
+                if (creditPlan(activePlan, now)) logStudyTime();
+                else activePlan = null;
             }
 
             // Study Stopwatch Background Run
@@ -1087,6 +1198,11 @@
         }
 
         setInterval(updateDisplay, 1000);
+
+        // Offline / install support (needs https or localhost)
+        if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+            navigator.serviceWorker.register('sw.js').catch(err => console.log(err));
+        }
     </script>
 </body>
 </html>
