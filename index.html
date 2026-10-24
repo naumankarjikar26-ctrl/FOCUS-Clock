@@ -184,13 +184,6 @@
             --><div class="time-part" id="t-seconds" contenteditable="true" style="display: none;">00</div>
         </div>
 
-        <!-- Stopwatch Display -->
-        <div class="time-display" id="stopwatch-display" style="display: none;">
-            <div class="time-part" id="sw-hours" contenteditable="true">00</div><span class="colon">:</span><!--
-            --><div class="time-part" id="sw-minutes" contenteditable="true">00</div><span class="colon">:</span><!--
-            --><div class="time-part" id="sw-seconds" contenteditable="true">00</div>
-        </div>
-
         <!-- Clock Display -->
         <div class="time-display" id="clock-display" style="display: none;">
             <div class="time-part" id="c-hours">12</div><span class="colon">:</span><!--
@@ -230,6 +223,7 @@
             
             <div class="study-nav" id="study-nav">
                 <button class="study-nav-btn active" id="tab-btn-presets" onclick="switchStudyTab('presets')">Presets</button>
+                <button class="study-nav-btn" id="tab-btn-stopwatch" onclick="switchStudyTab('stopwatch')">Stopwatch</button>
                 <button class="study-nav-btn" id="tab-btn-stats" onclick="switchStudyTab('stats')">Stats</button>
             </div>
 
@@ -248,6 +242,16 @@
                     <button class="btn-icon" id="study-pause-btn" onclick="toggleStudyPause()" style="display: none;">⏸</button>
                     <button class="btn-icon" id="study-cancel-btn" onclick="cancelStudy()" style="display: none;">⏹</button>
                 </div>
+            </div>
+
+            <!-- Study Stopwatch View -->
+            <div id="study-stopwatch-view" style="display: none; flex-direction: column; align-items: center; margin-top: 20px;">
+                <div class="time-display" style="margin-bottom: 30px;">
+                    <div class="time-part" id="ssw-hours">00</div><span class="colon">:</span><!--
+                    --><div class="time-part" id="ssw-minutes">00</div><span class="colon">:</span><!--
+                    --><div class="time-part" id="ssw-seconds">00</div>
+                </div>
+                <button class="btn-primary" id="ssw-toggle-btn" onclick="toggleStudyStopwatch()">Start</button>
             </div>
 
             <!-- Statistics / Graph View -->
@@ -302,7 +306,6 @@
     <script>
         let mode = 'timer';
         let timerRunning = false;
-        let stopwatchRunning = false;
         
         // Study variables
         let studyState = 'idle'; 
@@ -310,6 +313,8 @@
         let pendingBreakMins = 0;
         let studyPaused = false;
 
+        let isStudyStopwatchRunning = false;
+        let studyStopwatchSecs = 0;
         
         // Load stored data
         let customPresets = JSON.parse(localStorage.getItem('focus_custom_presets')) || [];
@@ -324,7 +329,6 @@
         const focusTitle = document.getElementById('focus-title');
         
         const timerDisplay = document.getElementById('timer-display');
-        const stopwatchDisplay = document.getElementById('stopwatch-display');
         const clockDisplay = document.getElementById('clock-display');
         const studyTimerDisplay = document.getElementById('study-timer-display');
 
@@ -332,6 +336,7 @@
         const studyInterface = document.getElementById('study-interface');
         
         const studyMainView = document.getElementById('study-main-view');
+        const studyStopwatchView = document.getElementById('study-stopwatch-view');
         const studyStatsView = document.getElementById('study-stats-view');
         const studyNav = document.getElementById('study-nav');
         
@@ -349,8 +354,8 @@
         const musicPanel = document.getElementById('music-panel');
 
         // --- Mode order ---
-        const modeLabels = { timer: 'Timer', stopwatch: 'Stopwatch', clock: 'Clock', alarm: 'Alarm', study: 'Study' };
-        let modeOrder = JSON.parse(localStorage.getItem('focus_mode_order')) || ['timer', 'stopwatch', 'clock', 'alarm', 'study'];
+        const modeLabels = { timer: 'Timer', clock: 'Clock', alarm: 'Alarm', study: 'Study' };
+        let modeOrder = (JSON.parse(localStorage.getItem('focus_mode_order')) || ['timer', 'clock', 'alarm', 'study']).filter(m => modeLabels[m]);
 
         function renderModeSelect() {
             const select = document.getElementById('mode-select');
@@ -491,9 +496,11 @@
         // --- Study Stats & Calendar Logic ---
         function switchStudyTab(tab) {
             document.getElementById('tab-btn-presets').className = tab === 'presets' ? 'study-nav-btn active' : 'study-nav-btn';
+            document.getElementById('tab-btn-stopwatch').className = tab === 'stopwatch' ? 'study-nav-btn active' : 'study-nav-btn';
             document.getElementById('tab-btn-stats').className = tab === 'stats' ? 'study-nav-btn active' : 'study-nav-btn';
             
             studyMainView.style.display = tab === 'presets' ? 'flex' : 'none';
+            studyStopwatchView.style.display = tab === 'stopwatch' ? 'flex' : 'none';
             studyStatsView.style.display = tab === 'stats' ? 'flex' : 'none';
             
             if (tab === 'stats') {
@@ -647,6 +654,15 @@
             document.getElementById('st-seconds').innerText = String(s).padStart(2, '0');
         }
 
+        // --- Study Stopwatch Logic ---
+        function toggleStudyStopwatch() {
+            isStudyStopwatchRunning = !isStudyStopwatchRunning;
+            document.getElementById('ssw-toggle-btn').innerText = isStudyStopwatchRunning ? "Stop" : "Start";
+            if (mode === 'study') {
+                focusTitle.innerText = isStudyStopwatchRunning ? "STUDYING" : "STUDY STOPWATCH";
+            }
+        }
+
         // --- Alarms Logic ---
         function renderAlarms() {
             alarmList.innerHTML = '';
@@ -730,14 +746,6 @@
                 thEl.innerText = String(Math.floor(total / 3600)).padStart(2, '0'); tmEl.innerText = String(Math.floor((total % 3600) / 60)).padStart(2, '0'); tsEl.innerText = String(total % 60).padStart(2, '0');
             }
 
-            // Stopwatch
-            if (stopwatchRunning) {
-                let swhEl = document.getElementById('sw-hours'), swmEl = document.getElementById('sw-minutes'), swsEl = document.getElementById('sw-seconds');
-                let total = (parseInt(swhEl.innerText) || 0) * 3600 + (parseInt(swmEl.innerText) || 0) * 60 + (parseInt(swsEl.innerText) || 0);
-                total++;
-                swhEl.innerText = String(Math.floor(total / 3600)).padStart(2, '0'); swmEl.innerText = String(Math.floor((total % 3600) / 60)).padStart(2, '0'); swsEl.innerText = String(total % 60).padStart(2, '0');
-            }
-
             // Function to log study time safely
             const logStudyTime = () => {
                 const offset = now.getTimezoneOffset() * 60000;
@@ -767,6 +775,18 @@
                 updateStudyDisplay();
             }
 
+            // Study Stopwatch Background Run
+            if (isStudyStopwatchRunning) {
+                logStudyTime();
+                studyStopwatchSecs++;
+                
+                let h = Math.floor(studyStopwatchSecs / 3600);
+                let m = Math.floor((studyStopwatchSecs % 3600) / 60);
+                let s = studyStopwatchSecs % 60;
+                document.getElementById('ssw-hours').innerText = String(h).padStart(2, '0');
+                document.getElementById('ssw-minutes').innerText = String(m).padStart(2, '0');
+                document.getElementById('ssw-seconds').innerText = String(s).padStart(2, '0');
+            }
         }
 
         function toggle() {
@@ -774,9 +794,6 @@
             if (mode === 'timer') {
                 timerRunning = !timerRunning; btn.innerText = timerRunning ? "Stop" : "Start";
                 document.getElementById('t-hours').contentEditable = !timerRunning; document.getElementById('t-minutes').contentEditable = !timerRunning; document.getElementById('t-seconds').contentEditable = !timerRunning;
-            } else if (mode === 'stopwatch') {
-                stopwatchRunning = !stopwatchRunning; btn.innerText = stopwatchRunning ? "Stop" : "Start";
-                document.getElementById('sw-hours').contentEditable = !stopwatchRunning; document.getElementById('sw-minutes').contentEditable = !stopwatchRunning; document.getElementById('sw-seconds').contentEditable = !stopwatchRunning;
             }
         }
 
@@ -785,20 +802,15 @@
                 timerRunning = false; btn.innerText = "Start";
                 document.getElementById('t-hours').innerText = "02"; document.getElementById('t-minutes').innerText = "00"; document.getElementById('t-seconds').innerText = "00";
                 document.getElementById('t-hours').contentEditable = true; document.getElementById('t-minutes').contentEditable = true; document.getElementById('t-seconds').contentEditable = true;
-            } else if (mode === 'stopwatch') {
-                stopwatchRunning = false; btn.innerText = "Start";
-                document.getElementById('sw-hours').innerText = "00"; document.getElementById('sw-minutes').innerText = "00"; document.getElementById('sw-seconds').innerText = "00";
-                document.getElementById('sw-hours').contentEditable = true; document.getElementById('sw-minutes').contentEditable = true; document.getElementById('sw-seconds').contentEditable = true;
             }
         }
 
         function changeMode() {
             mode = document.getElementById('mode-select').value;
             
-            const isClock = mode === 'clock', isAlarm = mode === 'alarm', isTimer = mode === 'timer', isStopwatch = mode === 'stopwatch', isStudy = mode === 'study';
+            const isClock = mode === 'clock', isAlarm = mode === 'alarm', isTimer = mode === 'timer', isStudy = mode === 'study';
             
             timerDisplay.style.display = isTimer ? 'flex' : 'none';
-            stopwatchDisplay.style.display = isStopwatch ? 'flex' : 'none';
             clockDisplay.style.display = isClock ? 'flex' : 'none'; 
             alarmInterface.style.display = isAlarm ? 'flex' : 'none';
             studyInterface.style.display = isStudy ? 'flex' : 'none';
@@ -809,6 +821,7 @@
                 } else {
                     studyNav.style.display = 'none';
                     studyMainView.style.display = 'flex';
+                    studyStopwatchView.style.display = 'none';
                     studyStatsView.style.display = 'none';
                 }
                 studyTimerDisplay.style.display = (studyState !== 'idle') ? 'flex' : 'none';
@@ -820,7 +833,6 @@
             resetBtn.style.display = (isClock || isAlarm || isStudy) ? 'none' : 'inline-block';
 
             if (isTimer) btn.innerText = timerRunning ? "Stop" : "Start";
-            if (isStopwatch) btn.innerText = stopwatchRunning ? "Stop" : "Start";
 
             if (isAlarm) {
                 if (!['ALARMS', 'CLOCK', 'STUDY PRESETS', 'STUDY STOPWATCH', 'STUDYING', 'BREAK TIME'].includes(focusTitle.innerText)) focusTitle.dataset.savedText = focusTitle.innerText;
@@ -831,7 +843,7 @@
             } else if (isStudy) {
                 if (!['ALARMS', 'CLOCK', 'STUDY PRESETS', 'STUDY STOPWATCH', 'STUDYING', 'BREAK TIME'].includes(focusTitle.innerText)) focusTitle.dataset.savedText = focusTitle.innerText;
                 if (studyState === 'idle') {
-                    focusTitle.innerText = "STUDY PRESETS";
+                    focusTitle.innerText = isStudyStopwatchRunning ? "STUDYING" : "STUDY PRESETS";
                 }
                 else if (studyState === 'study' || studyState === 'study_ringing') focusTitle.innerText = "STUDYING";
                 else focusTitle.innerText = "BREAK TIME";
