@@ -1,5 +1,5 @@
 // Offline support: serve the app from cache, refresh it from the network when online.
-const CACHE = 'focus-v1';
+const CACHE = 'focus-v2';
 const FILES = ['./', './index.html', './manifest.json', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', e => {
