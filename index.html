@@ -867,6 +867,10 @@
             return h ? `${h}h ${m}m` : `${m}m`;
         }
 
+        function planTimeLabel(p) {
+            return `${formatHours(p.secs)} ${String(p.secs % 60).padStart(2, '0')}s / ${p.goal}h`;
+        }
+
         function selectPlanDay(day) { selectedPlanDay = day; deckIndex = 0; pomoChooser = null; renderPlanner(); }
 
         // Lay the cards out as a stack: top card, two peeking behind, the rest hidden
@@ -912,7 +916,7 @@
                     ${lastNote ? `<div class="plan-note-last">📝 ${escapeHtml(lastNote.text)}${p.notes.length > 1 ? ` (+${p.notes.length - 1} more)` : ''}</div>` : ''}
                     <div class="plan-progress"><div style="width: ${pct}%"></div></div>
                     <div class="plan-meta">
-                        <span id="plan-time-${i}">${formatHours(p.secs)} / ${p.goal}h</span>
+                        <span id="plan-time-${i}">${planTimeLabel(p)}</span>
                         <span class="plan-actions">
                             <button class="btn-icon plan-pomo" onclick="togglePomoChooser(${i})" title="Start a study preset">🍅</button>
                             <button class="btn-icon plan-play" onclick="togglePlan(${i})" title="Free study">${running && !(studyState !== 'idle' && studyPaused && pomodoroPlan && pomodoroPlan.index === i) ? '⏸' : '▶'}</button>
@@ -1012,7 +1016,7 @@
             if (mode === 'planner' && selectedPlanDay === ref.day) {
                 const label = document.getElementById(`plan-time-${ref.index}`);
                 if (label) {
-                    label.innerText = `${formatHours(p.secs)} / ${p.goal}h`;
+                    label.innerText = planTimeLabel(p);
                     label.closest('.plan-card').querySelector('.plan-progress div').style.width = `${Math.min(100, (p.secs / (p.goal * 3600)) * 100)}%`;
                 }
             }
