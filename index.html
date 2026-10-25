@@ -1280,15 +1280,26 @@
         }
 
         // --- Main Clock/Timer Update Loop ---
+        // Browsers throttle timers in background tabs (down to once a minute), so instead of
+        // counting interval calls we replay every wall-clock second that passed since the last run.
+        let lastTickSec = Math.floor(Date.now() / 1000);
         function updateDisplay() {
-            const now = new Date();
-            checkAlarms(now);
+            const nowSec = Math.floor(Date.now() / 1000);
+            const missed = Math.min(nowSec - lastTickSec, 86400);
+            lastTickSec = nowSec;
+            for (let i = missed - 1; i >= 0; i--) tick(new Date((nowSec - i) * 1000));
 
             // Clock
+            const now = new Date();
             let ch = now.getHours() % 12; ch = ch ? ch : 12; 
             document.getElementById('c-hours').innerText = String(ch).padStart(2, '0');
             document.getElementById('c-minutes').innerText = String(now.getMinutes()).padStart(2, '0');
             document.getElementById('c-seconds').innerText = String(now.getSeconds()).padStart(2, '0');
+        }
+
+        // Advances all running timers by one second
+        function tick(now) {
+            checkAlarms(now);
 
             // Timer
             if (timerRunning) {
@@ -1429,7 +1440,7 @@
             else if (document.exitFullscreen) document.exitFullscreen();
         }
 
-        setInterval(updateDisplay, 1000);
+        setInterval(updateDisplay, 250);
 
         // Offline / install support (needs https or localhost)
         if ('serviceWorker' in navigator && location.protocol !== 'file:') {
