@@ -251,6 +251,14 @@
         .sync-btns .settings-btn { flex: 1; padding: 8px; }
         .sync-status { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; overflow-wrap: anywhere; }
         .subject-stats { width: 100%; margin-top: 20px; display: flex; flex-direction: column; gap: 6px; }
+        .session-log { width: 100%; margin-top: 20px; display: flex; flex-direction: column; gap: 6px; }
+        .session-row { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 600; padding: 6px 8px; background: var(--btn-light); border-radius: 8px; }
+        .session-row input { padding: 4px; border-radius: 6px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); font-family: inherit; font-size: 0.75rem; min-width: 0; }
+        .session-row input[type="time"] { width: 100px; }
+        .session-row input[type="text"] { flex: 1; }
+        .session-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
+        .session-row button { background: none; border: none; color: #d9534f; font-size: 1.1rem; cursor: pointer; padding: 0 4px; }
+        .session-row button.add { color: var(--text-main); font-weight: 800; }
         .subject-row { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; padding: 8px 12px; background: var(--btn-light); border-radius: 8px; }
 
         .stop-alarm-btn { background: var(--btn-text); color: var(--btn-dark); border: none; padding: 8px 16px; border-radius: 20px; font-weight: 800; cursor: pointer; font-size: 0.85rem; transition: transform 0.1s; }
@@ -387,6 +395,21 @@
                 <div class="stats-header">Past 7 Days</div>
                 <div class="graph-container" id="stats-graph"></div>
                 
+                <div class="session-log">
+                    <div class="month-header">
+                        <div class="stats-header">Session Log</div>
+                        <input type="date" class="month-select" id="log-date" onchange="renderSessionLog()">
+                    </div>
+                    <div id="session-list"></div>
+                    <div class="session-row">
+                        <input type="time" id="log-start" title="Start">
+                        <span>–</span>
+                        <input type="time" id="log-end" title="End">
+                        <input type="text" id="log-subject" placeholder="Subject" maxlength="30">
+                        <button class="add" onclick="addSession()" title="Add a session you forgot to time">+</button>
+                    </div>
+                </div>
+
                 <div class="subject-stats">
                     <div class="stats-header">By Subject</div>
                     <div id="subject-stats"></div>
@@ -487,6 +510,8 @@
         let exams = JSON.parse(localStorage.getItem('focus_exams')) || [];
         let distractions = JSON.parse(localStorage.getItem('focus_distractions')) || {};
         let dailyGoal = parseFloat(localStorage.getItem('focus_daily_goal')) || 2;
+        let sessions = JSON.parse(localStorage.getItem('focus_sessions')) || [];
+        let openSessions = {}; // session each running timer is currently extending
 
         let alarms = [];
         let audioCtx;
@@ -696,6 +721,7 @@
                 renderCalendar();
                 renderSubjectStats();
                 renderStreak();
+                renderSessionLog();
             }
         }
 
@@ -1137,6 +1163,7 @@
             exams = JSON.parse(localStorage.getItem('focus_exams')) || [];
             distractions = JSON.parse(localStorage.getItem('focus_distractions')) || {};
             dailyGoal = parseFloat(localStorage.getItem('focus_daily_goal')) || 2;
+            sessions = JSON.parse(localStorage.getItem('focus_sessions')) || [];
             modeOrder = (JSON.parse(localStorage.getItem('focus_mode_order')) || []).filter(m => modeLabels[m]);
             Object.keys(modeLabels).forEach(m => { if (!modeOrder.includes(m)) modeOrder.push(m); });
             if (activePlan && !(plans[activePlan.day] || [])[activePlan.index]) activePlan = null;
@@ -1147,7 +1174,7 @@
             renderCustomPresets();
             if (document.getElementById('settings-panel').style.display === 'flex') renderReorderList();
             if (mode === 'planner' && !plannerInterface.contains(document.activeElement)) renderPlanner();
-            if (studyStatsView.style.display === 'flex') { renderGraph(); renderCalendar(); renderSubjectStats(); renderStreak(); }
+            if (studyStatsView.style.display === 'flex') { renderGraph(); renderCalendar(); renderSubjectStats(); renderStreak(); renderSessionLog(); }
         }
 
         // --- Backup / restore ---
@@ -1180,6 +1207,137 @@
                 Object.entries(parsed.data).forEach(([k, v]) => { if (k.startsWith('focus_') && typeof v === 'string') localStorage.setItem(k, v); });
                 location.reload();
             });
+        }
+
+        // --- Session log ---
+        function saveSessions() {
+            const cutoff = Date.now() - 90 * 86400000;
+            sessions = sessions.filter(x => x.end > cutoff);
+            localStorage.setItem('focus_sessions', JSON.stringify(sessions));
+        }
+
+        // Extends the running timer's session by one second, or starts a new one after a gap
+        function trackSession(source, planRef, now) {
+            const t = Math.floor(now.getTime() / 1000) * 1000;
+            const p = planRef && (plans[planRef.day] || [])[planRef.index];
+            const key = source + (p ? ` ${planRef.day} ${planRef.index}` : '');
+            let s = openSessions[key] && sessions.find(x => x.id === openSessions[key]);
+            if (!s || s.end !== t) {
+                s = { id: `${t}-${Math.random().toString(36).slice(2, 7)}`, start: t, end: t, source };
+                if (p) Object.assign(s, { subject: p.subject, item: p.item, day: planRef.day });
+                sessions.push(s);
+                openSessions[key] = s.id;
+            }
+            s.end = t + 1000;
+        }
+
+        function isLive(s) {
+            return Object.values(openSessions).includes(s.id) && Date.now() - s.end < 3000;
+        }
+
+        // Adds (sign 1) or removes (sign -1) a session's time from the daily, subject and planner totals
+        function applySession(s, sign) {
+            for (let t = s.start; t < s.end;) {
+                const d = new Date(t);
+                const next = Math.min(s.end, new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime());
+                const key = dateKey(d);
+                studyStats[key] = Math.max(0, (studyStats[key] || 0) + sign * Math.round((next - t) / 1000));
+                if (!studyStats[key]) delete studyStats[key];
+                t = next;
+            }
+            const secs = Math.round((s.end - s.start) / 1000);
+            if (s.subject) {
+                subjectStats[s.subject] = Math.max(0, (subjectStats[s.subject] || 0) + sign * secs);
+                if (!subjectStats[s.subject]) delete subjectStats[s.subject];
+                const card = (plans[s.day] || []).find(c => c.subject === s.subject && c.item === s.item);
+                if (card) card.secs = Math.max(0, card.secs + sign * secs);
+            }
+        }
+
+        function saveAfterSessionEdit() {
+            saveSessions();
+            savePlans();
+            localStorage.setItem('focus_study_stats', JSON.stringify(studyStats));
+            localStorage.setItem('focus_subject_stats', JSON.stringify(subjectStats));
+            renderGraph(); renderCalendar(); renderSubjectStats(); renderStreak(); renderSessionLog();
+        }
+
+        // "HH:MM" on the given day as a timestamp
+        function atTime(day, hhmm) {
+            const [h, m] = hhmm.split(':').map(Number);
+            return new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m).getTime();
+        }
+
+        function toHHMM(t) {
+            const d = new Date(t);
+            return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        }
+
+        function renderSessionLog() {
+            const dateInput = document.getElementById('log-date');
+            if (!dateInput.value) dateInput.value = dateKey(new Date());
+            const list = sessions.filter(x => dateKey(new Date(x.start)) === dateInput.value).sort((a, b) => a.start - b.start);
+            document.getElementById('session-list').innerHTML = list.length ? list.map(x => {
+                const live = isLive(x);
+                const label = `${x.subject ? escapeHtml(x.subject) : x.source} · ${formatHours((x.end - x.start) / 1000)}${live ? ' · live' : ''}`;
+                return `<div class="session-row" style="margin-bottom: 6px;">
+                    <input type="time" value="${toHHMM(x.start)}" ${live ? 'disabled' : ''} onchange="editSession('${x.id}', 'start', this.value)">
+                    <span>–</span>
+                    <input type="time" value="${toHHMM(x.end)}" ${live ? 'disabled' : ''} onchange="editSession('${x.id}', 'end', this.value)">
+                    <span class="session-label" title="${x.item ? escapeHtml(x.item) : ''}">${label}</span>
+                    ${live ? '' : `<button onclick="deleteSession('${x.id}')" title="Delete">×</button>`}
+                </div>`;
+            }).join('') : '<div class="subject-row" style="margin-bottom: 6px;"><span>No sessions this day</span></div>';
+        }
+
+        function editSession(id, field, value) {
+            const s = sessions.find(x => x.id === id);
+            if (!s || !value) return;
+            const day = new Date(s.start);
+            let start = s.start, end = s.end;
+            if (field === 'start') start = atTime(day, value);
+            else {
+                end = atTime(day, value);
+                if (end <= start) end += 86400000; // ended after midnight
+            }
+            if (end <= start || end - start > 86400000) { alert('The end time has to be after the start time.'); renderSessionLog(); return; }
+            applySession(s, -1);
+            s.start = start;
+            s.end = end;
+            applySession(s, 1);
+            saveAfterSessionEdit();
+        }
+
+        function deleteSession(id) {
+            const s = sessions.find(x => x.id === id);
+            if (!s || !confirm('Delete this session and remove its time?')) return;
+            applySession(s, -1);
+            sessions = sessions.filter(x => x !== s);
+            saveAfterSessionEdit();
+        }
+
+        // Logs a session that wasn't timed, e.g. when you forgot to start the timer
+        function addSession() {
+            const dayStr = document.getElementById('log-date').value;
+            const startStr = document.getElementById('log-start').value;
+            const endStr = document.getElementById('log-end').value;
+            const subject = document.getElementById('log-subject').value.trim();
+            if (!dayStr || !startStr || !endStr) return;
+            const [y, m, d] = dayStr.split('-').map(Number);
+            const day = new Date(y, m - 1, d);
+            const start = atTime(day, startStr);
+            let end = atTime(day, endStr);
+            if (end <= start) end += 86400000;
+            if (end > Date.now()) { alert("That session hasn't finished yet."); return; }
+            const s = { id: `${start}-${Math.random().toString(36).slice(2, 7)}`, start, end, source: 'Manual' };
+            if (subject) {
+                const card = (plans[dayStr] || []).find(c => c.subject.toLowerCase() === subject.toLowerCase());
+                Object.assign(s, card ? { subject: card.subject, item: card.item, day: dayStr } : { subject });
+            }
+            sessions.push(s);
+            applySession(s, 1);
+            ['log-start', 'log-end', 'log-subject'].forEach(id => document.getElementById(id).value = '');
+            saveAfterSessionEdit();
         }
 
         // --- Daily goal & streak ---
@@ -1339,19 +1497,21 @@
             }
 
             // Function to log study time safely
-            const logStudyTime = () => {
+            const logStudyTime = (source, planRef) => {
                 const offset = now.getTimezoneOffset() * 60000;
                 const dateStr = (new Date(now - offset)).toISOString().split('T')[0];
                 if (!studyStats[dateStr]) studyStats[dateStr] = 0;
                 studyStats[dateStr]++;
+                trackSession(source, planRef, now);
                 if (now.getSeconds() % 5 === 0) {
                     localStorage.setItem('focus_study_stats', JSON.stringify(studyStats));
+                    saveSessions();
                 }
             };
 
             // Study Presets Background Run
             if ((studyState === 'study' || studyState === 'break') && !studyPaused) {
-                if (studyState === 'study') { logStudyTime(); creditPlan(pomodoroPlan, now); }
+                if (studyState === 'study') { logStudyTime('Preset', pomodoroPlan); creditPlan(pomodoroPlan, now); }
                 
                 currentStudySecs--;
                 if (currentStudySecs <= 0) {
@@ -1374,13 +1534,13 @@
 
             // Planner Background Run
             if (activePlan) {
-                if (creditPlan(activePlan, now)) logStudyTime();
+                if (creditPlan(activePlan, now)) logStudyTime('Planner', activePlan);
                 else activePlan = null;
             }
 
             // Study Stopwatch Background Run
             if (isStudyStopwatchRunning) {
-                logStudyTime();
+                logStudyTime('Stopwatch');
                 studyStopwatchSecs++;
                 
                 let h = Math.floor(studyStopwatchSecs / 3600);
